@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kumbukum Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">K</div>
+      <h1>Kumbukum Settings</h1>
+    </div>
+
+    <!-- Connection section -->
+    <div class="card">
+      <h2>Connection</h2>
+
+      <div class="form-group">
+        <label for="instance-url">Instance URL</label>
+        <input type="url" id="instance-url" class="input" placeholder="https://app.kumbukum.com">
+        <p class="help-text">The URL of your Kumbukum instance (e.g. https://app.kumbukum.com)</p>
+      </div>
+
+      <div class="form-group">
+        <label for="access-token">Personal Access Token</label>
+        <input type="password" id="access-token" class="input" placeholder="Enter your access token">
+        <p class="help-text">Create a token in Kumbukum under Settings &rarr; Access Tokens</p>
+      </div>
+
+      <button id="btn-verify" class="btn btn-primary">Verify Connection</button>
+      <div id="verify-status" class="status" style="display:none;"></div>
+    </div>
+
+    <!-- Project section -->
+    <div class="card" id="project-section" style="display:none;">
+      <h2>Project</h2>
+
+      <div class="form-group">
+        <label for="project-select">Select Project</label>
+        <select id="project-select" class="input">
+          <option value="">-- Select a project --</option>
+        </select>
+        <p class="help-text">URLs and notes will be saved to this project</p>
+      </div>
+
+      <button id="btn-save" class="btn btn-primary">Save Settings</button>
+      <div id="save-status" class="status" style="display:none;"></div>
+    </div>
+
+    <!-- About section -->
+    <div class="card">
+      <h2>About</h2>
+      <p>Kumbukum Browser Extension v<span id="version"></span></p>
+      <p class="help-text">Save URLs and notes to your Kumbukum knowledge base from any page.</p>
+      <p class="help-text"><a href="https://github.com/kumbukum/browser-extension" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

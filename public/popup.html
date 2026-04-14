@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kumbukum</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Warning view: shown when not configured -->
+  <div id="view-warning" class="view" style="display:none;">
+    <div class="warning-container">
+      <div class="logo-small">K</div>
+      <p id="warning-message">Please configure your Kumbukum settings.</p>
+      <button id="btn-open-settings" class="btn btn-primary btn-full">Open Settings</button>
+    </div>
+  </div>
+
+  <!-- Main view -->
+  <div id="view-main" class="view" style="display:none;">
+    <!-- Current page URL display + Save URL Only -->
+    <div class="section section-url">
+      <div class="current-url" id="current-url" title=""></div>
+      <button id="btn-save-url-only" class="btn btn-outline btn-full">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6.354 5.5H4a3 3 0 0 0 0 6h3a3 3 0 0 0 2.83-4H9.874a2 2 0 0 1-1.874 1.333H5a2 2 0 1 1 0-4h2.354zM9.646 10.5H12a3 3 0 1 0 0-6H9a3 3 0 0 0-2.83 4h.996A2 2 0 0 1 9 3.167h3a2 2 0 1 1 0 4H9.646z" fill="currentColor"/>
+        </svg>
+        Save URL Only
+      </button>
+      <div id="url-status" class="status" style="display:none;"></div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Note section -->
+    <div class="section section-note">
+      <input type="text" id="note-title" class="input" placeholder="Note title (optional)">
+      <textarea id="note-editor"></textarea>
+      <div class="btn-row">
+        <button id="btn-save-note-only" class="btn btn-secondary btn-half">Save Note Only</button>
+        <button id="btn-save-url-note" class="btn btn-primary btn-half">Save URL &amp; Note</button>
+      </div>
+      <div id="note-status" class="status" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
