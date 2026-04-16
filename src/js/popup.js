@@ -1,5 +1,5 @@
 import browser from 'webextension-polyfill';
-import { getAllSettings } from './storage.js';
+import { getAllSettings, getAccounts, getActiveAccountId, setActiveAccount } from './storage.js';
 import EasyMDE from 'easymde';
 import { marked } from 'marked';
 import 'easymde/dist/easymde.min.css';
@@ -11,14 +11,60 @@ let _currentTab = null;
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+	// Load accounts and populate switcher
+	const accounts = await getAccounts();
+
+	if (accounts.length === 0) {
+		showView('view-warning');
+		document.getElementById('warning-message').textContent =
+			'No accounts configured. Please add one in settings.';
+		document.getElementById('btn-open-settings').addEventListener('click', function () {
+			browser.runtime.openOptionsPage();
+		});
+		return;
+	}
+
+	// Populate account switcher
+	const switcher = document.getElementById('account-switcher');
+	const activeId = await getActiveAccountId();
+	switcher.innerHTML = '';
+	accounts.forEach(function (account) {
+		const opt = document.createElement('option');
+		opt.value = account.id;
+		opt.textContent = account.name + (account.project_name ? ' — ' + account.project_name : '');
+		if (account.id === activeId) {
+			opt.selected = true;
+		}
+		switcher.appendChild(opt);
+	});
+
+	switcher.addEventListener('change', async function () {
+		await setActiveAccount(switcher.value);
+		await loadActiveAccount();
+	});
+
+	await loadActiveAccount();
+}
+
+async function loadActiveAccount() {
 	_settings = await getAllSettings();
 
 	// Check if configured
 	if (!_settings.instance_url || !_settings.access_token || !_settings.project_id) {
+		document.getElementById('warning-message').textContent =
+			'This account is not fully configured. Please complete setup in settings.';
 		showView('view-warning');
+		// Keep switcher visible even in warning state
+		document.getElementById('account-switcher').closest('.section-account').style.display = '';
+		document.getElementById('view-warning').querySelector('.warning-container').style.display = '';
+		// Show both views: main (for switcher) and warning
+		document.getElementById('view-main').style.display = 'block';
+		document.getElementById('view-warning').style.display = 'block';
 		document.getElementById('btn-open-settings').addEventListener('click', function () {
 			browser.runtime.openOptionsPage();
 		});
+		// Hide main content sections but keep switcher
+		hideCaptureUI();
 		return;
 	}
 
@@ -28,25 +74,29 @@ async function init() {
 			method: 'GET',
 			headers: {
 				'Accept': 'application/json',
-				'Authorization': `Token ${_settings.access_token}`,
+				'Authorization': 'Token ' + _settings.access_token,
 			},
 		});
 		if (!response.ok) {
 			document.getElementById('warning-message').textContent =
 				'Your access token appears invalid. Please check your settings.';
 			showView('view-warning');
+			document.getElementById('view-main').style.display = 'block';
 			document.getElementById('btn-open-settings').addEventListener('click', function () {
 				browser.runtime.openOptionsPage();
 			});
+			hideCaptureUI();
 			return;
 		}
 	} catch (_err) {
 		document.getElementById('warning-message').textContent =
 			'Could not connect to Kumbukum. Please check your settings.';
 		showView('view-warning');
+		document.getElementById('view-main').style.display = 'block';
 		document.getElementById('btn-open-settings').addEventListener('click', function () {
 			browser.runtime.openOptionsPage();
 		});
+		hideCaptureUI();
 		return;
 	}
 
@@ -63,29 +113,51 @@ async function init() {
 		urlEl.textContent = 'No URL detected';
 	}
 
-	// Show main view
-	showView('view-main');
+	// Show main view, hide warning
+	document.getElementById('view-warning').style.display = 'none';
+	document.getElementById('view-main').style.display = 'block';
+	showCaptureUI();
 
-	// Init markdown editor
-	_editor = new EasyMDE({
-		element: document.getElementById('note-editor'),
-		spellChecker: false,
-		autofocus: false,
-		status: false,
-		minHeight: '180px',
-		toolbar: [
-			'bold', 'italic', 'heading', '|',
-			'unordered-list', 'ordered-list', '|',
-			'link', 'code', 'quote', '|',
-			'preview',
-		],
-		placeholder: 'Write your note in markdown...',
-	});
+	// Init markdown editor (only once)
+	if (!_editor) {
+		_editor = new EasyMDE({
+			element: document.getElementById('note-editor'),
+			spellChecker: false,
+			autofocus: false,
+			status: false,
+			minHeight: '180px',
+			toolbar: [
+				'bold', 'italic', 'heading', '|',
+				'unordered-list', 'ordered-list', '|',
+				'link', 'code', 'quote', '|',
+				'preview',
+			],
+			placeholder: 'Write your note in markdown...',
+		});
 
-	// Bind events
-	document.getElementById('btn-save-url-only').addEventListener('click', saveUrlOnly);
-	document.getElementById('btn-save-note-only').addEventListener('click', saveNoteOnly);
-	document.getElementById('btn-save-url-note').addEventListener('click', saveUrlAndNote);
+		// Bind events (only once)
+		document.getElementById('btn-save-url-only').addEventListener('click', saveUrlOnly);
+		document.getElementById('btn-save-note-only').addEventListener('click', saveNoteOnly);
+		document.getElementById('btn-save-url-note').addEventListener('click', saveUrlAndNote);
+	}
+}
+
+function hideCaptureUI() {
+	var urlSection = document.querySelector('.section-url');
+	var divider = document.querySelector('.divider');
+	var noteSection = document.querySelector('.section-note');
+	if (urlSection) urlSection.style.display = 'none';
+	if (divider) divider.style.display = 'none';
+	if (noteSection) noteSection.style.display = 'none';
+}
+
+function showCaptureUI() {
+	var urlSection = document.querySelector('.section-url');
+	var divider = document.querySelector('.divider');
+	var noteSection = document.querySelector('.section-note');
+	if (urlSection) urlSection.style.display = '';
+	if (divider) divider.style.display = '';
+	if (noteSection) noteSection.style.display = '';
 }
 
 // --- API helpers ---

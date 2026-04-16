@@ -1,6 +1,6 @@
 {
   "name": "kumbukum-browser-extension",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Save URLs and notes to Kumbukum from any page. Your personal knowledge base, one click away.",
   "private": true,
   "scripts": {
