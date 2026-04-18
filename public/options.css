@@ -6,6 +6,8 @@
   --color-border: #dee2e6;
   --color-text: #212529;
   --color-text-muted: #6c757d;
+  --color-danger: #dc3545;
+  --color-danger-hover: #c82333;
   --radius: 8px;
 }
 
@@ -68,6 +70,17 @@ body {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
+}
+
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-header-row h2 {
+  margin-bottom: 0;
 }
 
 /* Form */
@@ -133,6 +146,11 @@ select.input {
   cursor: not-allowed;
 }
 
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
 .btn-primary {
   background: var(--color-primary);
   color: #fff;
@@ -140,6 +158,95 @@ select.input {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
+}
+
+.btn-outline-secondary {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.btn-outline-secondary:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+/* Account list */
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 12px 0;
+  font-size: 13px;
+}
+
+.account-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  transition: border-color 0.15s;
+}
+
+.account-item.active {
+  border-color: var(--color-primary);
+  background: rgba(45, 156, 111, 0.04);
+}
+
+.account-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-item-name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-item-url {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-item-project {
+  font-size: 11px;
+  color: var(--color-primary);
+  margin-top: 2px;
+}
+
+.account-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.account-item-actions .btn-sm {
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 /* Status */
