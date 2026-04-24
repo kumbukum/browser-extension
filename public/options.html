@@ -38,8 +38,8 @@
 
       <div class="form-group">
         <label for="instance-url">Instance URL</label>
-        <input type="url" id="instance-url" class="input" placeholder="https://app.kumbukum.com">
-        <p class="help-text">The URL of your Kumbukum instance</p>
+        <input type="url" id="instance-url" class="input" placeholder="http://localhost:3000 or https://app.kumbukum.com">
+        <p class="help-text">The URL of your Kumbukum instance. If local API is reachable, localhost:3000 is selected by default for new accounts.</p>
       </div>
 
       <div class="form-group">
@@ -48,7 +48,9 @@
         <p class="help-text">Create a token in Kumbukum under Settings &rarr; Access Tokens</p>
       </div>
 
-      <button id="btn-verify" class="btn btn-primary">Verify Connection</button>
+      <div class="btn-row-right">
+        <button id="btn-verify" class="btn btn-info btn-sm">Verify Connection</button>
+      </div>
       <div id="verify-status" class="status" style="display:none;"></div>
 
       <!-- Project section (shown after verification) -->
@@ -58,10 +60,45 @@
           <select id="project-select" class="input">
             <option value="">-- Select a project --</option>
           </select>
-          <p class="help-text">URLs and notes will be saved to this project</p>
+          <p class="help-text">URLs and notes will be saved to this project. By default, the first project will be automatically selected.</p>
         </div>
 
-        <button id="btn-save" class="btn btn-primary">Save Account</button>
+        <div class="subsection" id="mailbox-section" style="margin-top: 1.5rem;">
+          <h3>Email Connector (optional)</h3>
+          <p class="help-text">While we try our best to extract email information without a login, providing credentials allows for more reliable syncing and should be used if you want to ensure all emails are captured all the time.</p>
+          
+          <div class="form-group" style="margin-top: 1rem;">
+            <label for="mailbox-provider">Provider</label>
+            <select id="mailbox-provider" class="input">
+              <option value="">-- Select provider --</option>
+              <option value="fastmail-jmap">Fastmail (JMAP)</option>
+              <option value="fastmail-imap">Fastmail (IMAP)</option>
+              <option value="gmail-imap">Gmail (IMAP app password)</option>
+              <option value="outlook-imap">Outlook/365 (IMAP app password)</option>
+              <option value="generic-imap">Generic IMAP</option>
+              <option value="generic-jmap">Generic JMAP</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="mailbox-email">Mailbox Email</label>
+            <input type="email" id="mailbox-email" class="input" placeholder="you@example.com">
+          </div>
+          
+          <div class="form-group">
+            <label for="mailbox-app-password">App Password / Token</label>
+            <input type="password" id="mailbox-app-password" class="input" placeholder="Enter app password or token">
+          </div>
+          
+          <div class="btn-row">
+            <button id="btn-mailbox-test" class="btn btn-outline-secondary btn-sm">Test Connector</button>
+            <button id="btn-mailbox-setup" class="btn btn-info btn-sm">Setup Connector</button>
+          </div>
+          <div id="mailbox-status" class="status" style="display:none;"></div>
+          <div class="help-text fs-7 mt-3">Your email credentials are securely encrypted and sent to Kumbukum and never stored in the extension.</div>
+        </div>
+
+        <button id="btn-save" class="btn btn-primary" style="margin-top: 1rem;">Save Account</button>
         <div id="save-status" class="status" style="display:none;"></div>
       </div>
     </div>
@@ -75,4 +112,6 @@
   </div>
 
   <script src="options.js"></script>
+</body>
+</html>
 

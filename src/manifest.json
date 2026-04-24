@@ -23,13 +23,42 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ],
+      "js": [
+        "email_extractor.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true,
+      "run_at": "document_idle"
+    }
+  ],
   "permissions": [
     "activeTab",
     "storage",
-    "tabs"
+    "tabs",
+    "webNavigation"
   ],
   "host_permissions": [
     "https://*/*",
     "http://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "page_bridge.js"
+      ],
+      "matches": [
+        "https://app.fastmail.com/*",
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+      ]
+    }
   ]
 }

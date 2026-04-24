@@ -1,6 +1,8 @@
 :root {
   --color-primary: #2d9c6f;
   --color-primary-hover: #248a5f;
+  --color-info: #5aa9f8;
+  --color-info-hover: #4597ea;
   --color-bg: #f5f6f8;
   --color-surface: #ffffff;
   --color-border: #dee2e6;
@@ -125,6 +127,19 @@ body {
 
 select.input {
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 36px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236c757d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+}
+
+select.input::-ms-expand {
+  display: none;
 }
 
 /* Buttons */
@@ -158,6 +173,15 @@ select.input {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
+}
+
+.btn-info {
+  background: var(--color-info);
+  color: #fff;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: var(--color-info-hover);
 }
 
 .btn-outline-secondary {
@@ -270,4 +294,42 @@ select.input {
 .status-info {
   background: #e2e3e5;
   color: #383d41;
+}
+
+.subsection {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+
+.subsection h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-row-right {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
+.fs-7 {
+  font-size: 11px;
+}
+
+.mt-3 {
+  margin-top: 12px;
 }

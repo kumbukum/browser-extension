@@ -1,6 +1,9 @@
 // Cross-browser compatible storage module — multi-account support
 import browser from 'webextension-polyfill';
 
+const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
+const LOCAL_DEV_INSTANCE_URL = 'http://localhost:3000';
+
 // --- Internal helpers ---
 
 async function _read() {
@@ -15,14 +18,30 @@ function _write(data) {
 	return browser.storage.sync.set(data);
 }
 
+function resolveEffectiveInstanceUrl(instanceUrl) {
+	const normalized = (instanceUrl || '').replace(/\/+$/, '');
+	const isDevMode = process.env.NODE_ENV === 'development';
+
+	if (isDevMode && (!normalized || normalized === CLOUD_INSTANCE_URL)) {
+		return LOCAL_DEV_INSTANCE_URL;
+	}
+
+	return normalized;
+}
+
 function computeApiUrls(obj) {
-	const base = (obj.instance_url || '').replace(/\/+$/, '');
+	const base = resolveEffectiveInstanceUrl(obj.instance_url);
 	obj.instance_url = base;
 	obj.token_test_url = `${base}/api/v1/counts`;
 	obj.projects_url = `${base}/api/v1/projects`;
 	obj.urls_create_url = `${base}/api/v1/urls`;
 	obj.notes_create_url = `${base}/api/v1/notes`;
 	obj.links_create_url = `${base}/api/v1/links`;
+	obj.emails_create_url = `${base}/api/v1/emails`;
+	obj.mailbox_setup_url = `${base}/api/v1/mailbox/setup-credentials`;
+	obj.mailbox_test_url = `${base}/api/v1/mailbox/test-connection`;
+	obj.mailbox_sync_url = `${base}/api/v1/mailbox/sync`;
+	obj.mailbox_status_url = `${base}/api/v1/mailbox/status`;
 	return obj;
 }
 
@@ -56,6 +75,9 @@ async function addAccount({ name, instance_url, access_token }) {
 		access_token: access_token || '',
 		project_id: '',
 		project_name: '',
+		mailbox_provider: '',
+		mailbox_email: '',
+		mailbox_configured: false,
 	};
 	accounts.push(account);
 	// If this is the first account, make it active

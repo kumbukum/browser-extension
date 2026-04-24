@@ -4,12 +4,20 @@ import {
 	addAccount, updateAccount, deleteAccount,
 } from './storage.js';
 
+const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
+const LOCAL_INSTANCE_URL = 'http://localhost:3000';
+
 let _editingAccountId = null; // null = adding new, string = editing existing
+let _mailboxConfigured = false;
+let _resolvedDefaultInstanceUrl = null;
 
 // DOM elements
 let accountNameInput, instanceUrlInput, accessTokenInput, projectSelect;
+let mailboxProviderSelect, mailboxEmailInput, mailboxAppPasswordInput;
 let btnAddAccount, btnVerify, btnSave, btnCancelEdit;
+let btnMailboxSetup, btnMailboxTest;
 let verifyStatus, saveStatus, projectSection, editorSection, editorTitle;
+let mailboxStatus;
 let accountListEl, emptyState, versionSpan;
 
 document.addEventListener('DOMContentLoaded', init);
@@ -20,12 +28,18 @@ async function init() {
 	instanceUrlInput = document.getElementById('instance-url');
 	accessTokenInput = document.getElementById('access-token');
 	projectSelect = document.getElementById('project-select');
+	mailboxProviderSelect = document.getElementById('mailbox-provider');
+	mailboxEmailInput = document.getElementById('mailbox-email');
+	mailboxAppPasswordInput = document.getElementById('mailbox-app-password');
 	btnAddAccount = document.getElementById('btn-add-account');
 	btnVerify = document.getElementById('btn-verify');
 	btnSave = document.getElementById('btn-save');
 	btnCancelEdit = document.getElementById('btn-cancel-edit');
+	btnMailboxSetup = document.getElementById('btn-mailbox-setup');
+	btnMailboxTest = document.getElementById('btn-mailbox-test');
 	verifyStatus = document.getElementById('verify-status');
 	saveStatus = document.getElementById('save-status');
+	mailboxStatus = document.getElementById('mailbox-status');
 	projectSection = document.getElementById('project-section');
 	editorSection = document.getElementById('editor-section');
 	editorTitle = document.getElementById('editor-title');
@@ -40,6 +54,12 @@ async function init() {
 	btnVerify.addEventListener('click', verifyConnection);
 	btnSave.addEventListener('click', saveAccount);
 	btnCancelEdit.addEventListener('click', closeEditor);
+	btnMailboxSetup.addEventListener('click', setupMailboxConnector);
+	btnMailboxTest.addEventListener('click', testMailboxConnector);
+	mailboxProviderSelect.addEventListener('change', markMailboxDirty);
+	mailboxEmailInput.addEventListener('input', markMailboxDirty);
+
+	void resolveDefaultInstanceUrl();
 
 	await renderAccountList();
 }
@@ -87,16 +107,21 @@ async function renderAccountList() {
 	});
 }
 
-function openNewAccountEditor() {
+async function openNewAccountEditor() {
 	_editingAccountId = null;
 	editorTitle.textContent = 'Add Account';
 	accountNameInput.value = '';
-	instanceUrlInput.value = 'https://app.kumbukum.com';
+	instanceUrlInput.value = await resolveDefaultInstanceUrl();
 	accessTokenInput.value = '';
 	projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
+	mailboxProviderSelect.value = '';
+	mailboxEmailInput.value = '';
+	mailboxAppPasswordInput.value = '';
+	_mailboxConfigured = false;
 	projectSection.style.display = 'none';
 	hideStatus(verifyStatus);
 	hideStatus(saveStatus);
+	hideStatus(mailboxStatus);
 	editorSection.style.display = 'block';
 	accountNameInput.focus();
 }
@@ -108,8 +133,13 @@ function openEditAccountEditor(account) {
 	instanceUrlInput.value = account.instance_url || '';
 	accessTokenInput.value = account.access_token || '';
 	projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
+	mailboxProviderSelect.value = account.mailbox_provider || '';
+	mailboxEmailInput.value = account.mailbox_email || '';
+	mailboxAppPasswordInput.value = '';
+	_mailboxConfigured = Boolean(account.mailbox_configured);
 	hideStatus(verifyStatus);
 	hideStatus(saveStatus);
+	hideStatus(mailboxStatus);
 
 	// If already has a valid connection, try to load projects
 	if (account.instance_url && account.access_token) {
@@ -219,6 +249,9 @@ async function saveAccount() {
 	const accessToken = accessTokenInput.value.trim();
 	const projectId = projectSelect.value;
 	const projectName = projectSelect.options[projectSelect.selectedIndex]?.text || '';
+	const mailboxProvider = mailboxProviderSelect.value.trim();
+	const mailboxEmail = mailboxEmailInput.value.trim().toLowerCase();
+	const mailboxConfigured = Boolean(mailboxProvider && mailboxEmail && _mailboxConfigured);
 
 	if (!name) {
 		showStatus(saveStatus, 'Please enter an account name.', 'error');
@@ -239,11 +272,20 @@ async function saveAccount() {
 			await updateAccount(_editingAccountId, {
 				name, instance_url: instanceUrl, access_token: accessToken,
 				project_id: projectId, project_name: projectName,
+				mailbox_provider: mailboxProvider,
+				mailbox_email: mailboxEmail,
+				mailbox_configured: mailboxConfigured,
 			});
 		} else {
 			// Create new
 			const account = await addAccount({ name, instance_url: instanceUrl, access_token: accessToken });
-			await updateAccount(account.id, { project_id: projectId, project_name: projectName });
+			await updateAccount(account.id, {
+				project_id: projectId,
+				project_name: projectName,
+				mailbox_provider: mailboxProvider,
+				mailbox_email: mailboxEmail,
+				mailbox_configured: mailboxConfigured,
+			});
 			_editingAccountId = account.id;
 		}
 
@@ -251,6 +293,162 @@ async function saveAccount() {
 		await renderAccountList();
 	} catch (err) {
 		showStatus(saveStatus, 'Failed to save: ' + err.message, 'error');
+	}
+}
+
+function markMailboxDirty() {
+	if (_mailboxConfigured) {
+		_mailboxConfigured = false;
+		showStatus(mailboxStatus, 'Mailbox fields changed. Run Setup Connector again before saving.', 'info');
+	}
+}
+
+async function testMailboxConnector() {
+	await runMailboxAction(false);
+}
+
+async function setupMailboxConnector() {
+	await runMailboxAction(true);
+}
+
+async function runMailboxAction(isSetup) {
+	const instanceUrl = instanceUrlInput.value.trim().replace(/\/+$/, '');
+	const accessToken = accessTokenInput.value.trim();
+	const mailboxProvider = mailboxProviderSelect.value.trim();
+	const mailboxEmail = mailboxEmailInput.value.trim().toLowerCase();
+	const appPassword = mailboxAppPasswordInput.value.trim();
+
+	if (!instanceUrl || !accessToken) {
+		showStatus(mailboxStatus, 'Set instance URL and token first.', 'error');
+		return;
+	}
+
+	if (!mailboxProvider || !mailboxEmail || !appPassword) {
+		showStatus(mailboxStatus, 'Provider, mailbox email, and app password/token are required.', 'error');
+		return;
+	}
+
+	const endpoint = isSetup
+		? '/api/v1/mailbox/setup-credentials'
+		: '/api/v1/mailbox/test-connection';
+	const requestUrl = instanceUrl + endpoint;
+
+	showStatus(mailboxStatus, isSetup ? 'Setting up connector...' : 'Testing connector...', 'info');
+	btnMailboxSetup.disabled = true;
+	btnMailboxTest.disabled = true;
+
+	try {
+		const { response, usedUrl, triedUrls } = await fetchWith404Fallback(requestUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': 'Token ' + accessToken,
+			},
+			body: JSON.stringify({
+				provider: mailboxProvider,
+				email: mailboxEmail,
+				app_password: appPassword,
+			}),
+		});
+
+		if (!response.ok) {
+			const data = await readResponseData(response);
+			const apiMessage = getApiErrorMessage(data);
+			if (response.status === 404) {
+				throw new Error('Connector endpoint not found (404). Tried: ' + triedUrls.join(' | '));
+			}
+			throw new Error(apiMessage || ('HTTP ' + response.status + ' (' + usedUrl + ')'));
+		}
+
+		if (isSetup) {
+			_mailboxConfigured = true;
+			showStatus(mailboxStatus, 'Connector configured on backend. Password/token not stored in extension.', 'success');
+		} else {
+			showStatus(mailboxStatus, 'Connector test successful.', 'success');
+		}
+
+		mailboxAppPasswordInput.value = '';
+	} catch (err) {
+		showStatus(mailboxStatus, 'Mailbox error: ' + err.message, 'error');
+	} finally {
+		btnMailboxSetup.disabled = false;
+		btnMailboxTest.disabled = false;
+	}
+}
+
+async function fetchWith404Fallback(url, init) {
+	const triedUrls = [url];
+	let usedUrl = url;
+	let response = await fetch(url, init);
+
+	if (response.status === 404) {
+		const fallbackUrl = toggleTrailingSlash(url);
+		if (fallbackUrl !== url) {
+			triedUrls.push(fallbackUrl);
+			response = await fetch(fallbackUrl, init);
+			usedUrl = fallbackUrl;
+		}
+	}
+
+	return { response, usedUrl, triedUrls };
+}
+
+function toggleTrailingSlash(url) {
+	if (url.endsWith('/')) {
+		return url.replace(/\/+$/, '');
+	}
+	return url + '/';
+}
+
+async function readResponseData(response) {
+	let text = '';
+	try {
+		text = await response.text();
+	} catch (_err) {
+		return {};
+	}
+
+	if (!text) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(text);
+	} catch (_err) {
+		return { detail: text };
+	}
+}
+
+function getApiErrorMessage(data) {
+	if (!data || typeof data !== 'object') {
+		return '';
+	}
+	return data.error || data.detail || data.message || '';
+}
+
+async function resolveDefaultInstanceUrl() {
+	if (_resolvedDefaultInstanceUrl) {
+		return _resolvedDefaultInstanceUrl;
+	}
+
+	const localReachable = await isLikelyLocalKumbukumReachable();
+	_resolvedDefaultInstanceUrl = localReachable ? LOCAL_INSTANCE_URL : CLOUD_INSTANCE_URL;
+	return _resolvedDefaultInstanceUrl;
+}
+
+async function isLikelyLocalKumbukumReachable() {
+	try {
+		const response = await fetch(LOCAL_INSTANCE_URL + '/api/v1/counts', {
+			method: 'GET',
+			headers: {
+				'Accept': 'application/json',
+			},
+		});
+
+		// 200 = open endpoint, 401/403 = protected but reachable API
+		return response.status === 200 || response.status === 401 || response.status === 403;
+	} catch (_err) {
+		return false;
 	}
 }
 

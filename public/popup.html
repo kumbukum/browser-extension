@@ -27,14 +27,24 @@
 
     <!-- Current page URL display + Save URL Only -->
     <div class="section section-url">
-      <div class="current-url" id="current-url" title=""></div>
-      <button id="btn-save-url-only" class="btn btn-outline btn-full">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6.354 5.5H4a3 3 0 0 0 0 6h3a3 3 0 0 0 2.83-4H9.874a2 2 0 0 1-1.874 1.333H5a2 2 0 1 1 0-4h2.354zM9.646 10.5H12a3 3 0 1 0 0-6H9a3 3 0 0 0-2.83 4h.996A2 2 0 0 1 9 3.167h3a2 2 0 1 1 0 4H9.646z" fill="currentColor"/>
-        </svg>
-        Save URL Only
-      </button>
+      <div class="input-group">
+        <input type="text" id="current-url" class="input input-group-field current-url-input" title="" readonly>
+        <button id="btn-save-url-only" class="btn btn-outline btn-input-group">Save URL</button>
+      </div>
       <div id="url-status" class="status" style="display:none;"></div>
+    </div>
+
+    <div class="section section-email" id="email-section" style="display:none;">
+      <div class="section-title">Email detected</div>
+      <div id="email-preview" style="display:none;">
+        <div class="input-group">
+          <input type="text" id="email-preview-subject" class="input input-group-field email-subject-input" placeholder="Email subject">
+          <button id="btn-save-email" class="btn btn-outline btn-input-group" style="display:none;">Add Email</button>
+        </div>
+      </div>
+      <div class="email-empty-state" id="email-empty-state" style="display:none;"></div>
+      <button id="btn-email-settings" class="btn btn-secondary btn-full email-secondary-action" style="display:none;">Connector Settings</button>
+      <div id="email-status" class="status" style="display:none;"></div>
     </div>
 
     <hr class="divider">
