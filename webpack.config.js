@@ -33,6 +33,8 @@ function getEntryPoints() {
 	const baseEntries = {
 		options: path.join(srcDir, 'js', 'options.js'),
 		popup: path.join(srcDir, 'js', 'popup.js'),
+		email_extractor: path.join(srcDir, 'js', 'email-extractor.js'),
+		page_bridge: path.join(srcDir, 'js', 'page-bridge.js'),
 	}
 
 	if (isFirefox) {
