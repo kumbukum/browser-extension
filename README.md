@@ -69,31 +69,10 @@ This outputs:
 
 Load `build/` as an unpacked extension in `chrome://extensions/`.
 
-### Build for Firefox
-
-```bash
-npm run build:firefox
-```
-
-This outputs:
-
-- `build-firefox/` — unpacked Firefox extension
-- `build-firefox.zip` — packaged archive for distribution
-
-Load `build-firefox/` as a temporary add-on in `about:debugging`.
-
 ### Development
 
 ```bash
 npm run watch
-npm run watch:firefox
-```
-
-### Firefox testing helpers
-
-```bash
-npm run start:firefox
-npm run lint:firefox
 ```
 
 ## Configuration

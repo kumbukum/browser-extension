@@ -125,6 +125,26 @@ body {
   box-shadow: 0 0 0 2px rgba(45, 156, 111, 0.15);
 }
 
+.textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.checkbox-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+
 select.input {
   cursor: pointer;
   appearance: none;
