@@ -126,17 +126,23 @@ function getAutoCaptureSkipReason(url, userExcludeSites) {
 }
 
 async function postUrlToKumbukum(settings, urlInfo) {
+	const payload = {
+		url: urlInfo.url,
+		title: urlInfo.title || '',
+		project: urlInfo.project_id || settings.project_id,
+	};
+
+	if (urlInfo.screenshot_data_url) {
+		payload.screenshot_data_url = urlInfo.screenshot_data_url;
+	}
+
 	const response = await fetch(settings.urls_create_url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Token ${settings.access_token}`,
 		},
-		body: JSON.stringify({
-			url: urlInfo.url,
-			title: urlInfo.title || '',
-			project: urlInfo.project_id || settings.project_id,
-		}),
+		body: JSON.stringify(payload),
 	});
 
 	const data = await response.json().catch(function () { return {}; });

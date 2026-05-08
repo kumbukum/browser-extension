@@ -19,7 +19,7 @@ let _resolvedDefaultInstanceUrl = null;
 // DOM elements
 let accountNameInput, instanceUrlInput, accessTokenInput, projectSelect;
 let mailboxProviderSelect, mailboxEmailInput, mailboxAppPasswordInput;
-let autoCaptureEnabledInput, autoCaptureAccountSelect, autoCaptureProjectSelect, autoCaptureDelayInput, autoCaptureExcludeSitesInput;
+let autoCaptureEnabledInput, autoCaptureScrollEnabledInput, autoCaptureAccountSelect, autoCaptureProjectSelect, autoCaptureDelayInput, autoCaptureExcludeSitesInput;
 let btnAddAccount, btnVerify, btnSave, btnCancelEdit;
 let btnSaveAutoCapture;
 let btnMailboxSetup, btnMailboxTest;
@@ -39,6 +39,7 @@ async function init() {
 	mailboxEmailInput = document.getElementById('mailbox-email');
 	mailboxAppPasswordInput = document.getElementById('mailbox-app-password');
 	autoCaptureEnabledInput = document.getElementById('auto-capture-enabled');
+	autoCaptureScrollEnabledInput = document.getElementById('auto-capture-scroll-enabled');
 	autoCaptureAccountSelect = document.getElementById('auto-capture-account');
 	autoCaptureProjectSelect = document.getElementById('auto-capture-project');
 	autoCaptureDelayInput = document.getElementById('auto-capture-delay');
@@ -335,6 +336,7 @@ async function renderAutoCaptureSettings() {
 	});
 
 	autoCaptureEnabledInput.checked = Boolean(settings.enabled);
+	autoCaptureScrollEnabledInput.checked = Boolean(settings.scroll_capture_enabled);
 	autoCaptureDelayInput.value = normalizeAutoCaptureDelay(settings.delay_seconds);
 	autoCaptureExcludeSitesInput.value = settings.exclude_sites.join('\n');
 	autoCaptureAccountSelect.disabled = accounts.length === 0;
@@ -416,6 +418,7 @@ async function saveAutoCaptureSettings() {
 			project_id: projectId,
 			project_name: projectName,
 			delay_seconds: delaySeconds,
+			scroll_capture_enabled: autoCaptureScrollEnabledInput.checked,
 			exclude_sites: normalizeExcludeSites(autoCaptureExcludeSitesInput.value),
 		});
 		showStatus(autoCaptureStatus, 'Autocapture settings saved.', 'success');
