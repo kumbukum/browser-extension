@@ -13,6 +13,7 @@ import {
 const AUTO_CAPTURE_ALARM_NAME = 'kumbukum.autoCapture';
 const AUTO_CAPTURE_PENDING_KEY = 'auto_capture_pending';
 const EMAIL_EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
+const SCROLL_CAPTURE_ACTION = 'kumbukum.autoCaptureScrollDepth';
 const pendingStorage = browser.storage.session || browser.storage.local;
 
 browser.runtime.onInstalled.addListener(function (details) {
@@ -56,6 +57,12 @@ browser.storage.onChanged.addListener(function (changes, areaName) {
 browser.alarms.onAlarm.addListener(function (alarm) {
 	if (alarm.name === AUTO_CAPTURE_ALARM_NAME) {
 		void handleAutoCaptureAlarm();
+	}
+});
+
+browser.runtime.onMessage.addListener(function (message, sender) {
+	if (message && message.action === SCROLL_CAPTURE_ACTION) {
+		void handleAutoCaptureScroll(message, sender);
 	}
 });
 
@@ -117,50 +124,94 @@ async function handleAutoCaptureAlarm() {
 		return;
 	}
 
-	if (!tab.active || tab.windowId !== pending.window_id || normalizeUrlForCapture(tab.url) !== pending.normalized_url) {
+	if (tab.windowId !== pending.window_id) {
 		await clearPendingCapture();
 		return;
+	}
+
+	await captureTabIfEligible(tab, settings, {
+		normalized_url: pending.normalized_url,
+		title: pending.title || '',
+	});
+	await clearPendingCapture();
+}
+
+async function handleAutoCaptureScroll(message, sender) {
+	const settings = await getAutoCaptureSettings();
+	if (!settings.enabled || !settings.scroll_capture_enabled || !settings.account_id || !settings.project_id) {
+		return;
+	}
+
+	const tab = sender && sender.tab;
+	if (!tab || !tab.id || !tab.url) {
+		return;
+	}
+
+	const normalizedMessageUrl = normalizeUrlForCapture(message.url || '');
+	if (!normalizedMessageUrl || normalizeUrlForCapture(tab.url) !== normalizedMessageUrl) {
+		return;
+	}
+
+	await captureTabIfEligible(tab, settings, {
+		normalized_url: normalizedMessageUrl,
+		title: tab.title || '',
+	});
+	await clearPendingCapture();
+}
+
+async function captureTabIfEligible(tab, settings, pending) {
+	if (!tab || !tab.id || !tab.url || !tab.active) {
+		return false;
+	}
+
+	if (pending && pending.normalized_url && normalizeUrlForCapture(tab.url) !== pending.normalized_url) {
+		return false;
 	}
 
 	let win;
 	try {
 		win = await browser.windows.get(tab.windowId);
 	} catch (_err) {
-		await clearPendingCapture();
-		return;
+		return false;
 	}
 
 	if (!win.focused) {
-		await clearPendingCapture();
-		return;
+		return false;
 	}
 
 	if (getAutoCaptureSkipReason(tab.url, settings.exclude_sites)) {
-		await clearPendingCapture();
-		return;
+		return false;
 	}
 
 	if (await isEmailPage(tab.id)) {
-		await clearPendingCapture();
-		return;
+		return false;
 	}
 
 	const accountSettings = await getAccountSettings(settings.account_id);
 	if (!accountSettings.urls_create_url || !accountSettings.access_token || !settings.project_id) {
-		await clearPendingCapture();
-		return;
+		return false;
 	}
 
 	try {
+		const screenshotDataUrl = await captureVisibleScreenshot(tab);
 		await postUrlToKumbukum(accountSettings, {
 			url: tab.url,
-			title: tab.title || pending.title || '',
+			title: tab.title || (pending && pending.title) || '',
 			project_id: settings.project_id,
+			screenshot_data_url: screenshotDataUrl,
 		});
+		return true;
 	} catch (_err) {
 		// Autocapture is best-effort; manual capture remains available.
-	} finally {
-		await clearPendingCapture();
+		return false;
+	}
+}
+
+async function captureVisibleScreenshot(tab) {
+	try {
+		return await browser.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+	} catch (_err) {
+		return '';
 	}
 }
 

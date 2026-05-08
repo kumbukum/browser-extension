@@ -126,17 +126,23 @@ function getAutoCaptureSkipReason(url, userExcludeSites) {
 }
 
 async function postUrlToKumbukum(settings, urlInfo) {
+	const payload = {
+		url: urlInfo.url,
+		title: urlInfo.title || '',
+		project: urlInfo.project_id || settings.project_id,
+	};
+
+	if (urlInfo.screenshot_data_url) {
+		payload.screenshot_data_url = urlInfo.screenshot_data_url;
+	}
+
 	const response = await fetch(settings.urls_create_url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Token ${settings.access_token}`,
 		},
-		body: JSON.stringify({
-			url: urlInfo.url,
-			title: urlInfo.title || '',
-			project: urlInfo.project_id || settings.project_id,
-		}),
+		body: JSON.stringify(payload),
 	});
 
 	const data = await response.json().catch(function () { return {}; });
@@ -167,15 +173,17 @@ function matchesUserExclude(parsedUrl, excludeSite) {
 	if (!normalizedExclude) return false;
 
 	if (normalizedExclude.includes('/')) {
-		const urlWithoutScheme = (parsedUrl.hostname + parsedUrl.pathname).toLowerCase();
-		return urlWithoutScheme.startsWith(normalizedExclude);
+		const slashIndex = normalizedExclude.indexOf('/');
+		const excludedHost = normalizeExcludedHostPattern(normalizedExclude.slice(0, slashIndex));
+		const excludedPath = normalizedExclude.slice(slashIndex).toLowerCase();
+		return matchesHost(parsedUrl.hostname.toLowerCase(), excludedHost) && parsedUrl.pathname.toLowerCase().startsWith(excludedPath);
 	}
 
-	if (normalizedExclude.startsWith('*.')) {
-		return matchesHost(parsedUrl.hostname.toLowerCase(), normalizedExclude.slice(2));
-	}
+	return matchesHost(parsedUrl.hostname.toLowerCase(), normalizeExcludedHostPattern(normalizedExclude));
+}
 
-	return matchesHost(parsedUrl.hostname.toLowerCase(), normalizedExclude);
+function normalizeExcludedHostPattern(hostPattern) {
+	return hostPattern.toLowerCase().replace(/^\*\.?/, '');
 }
 
 function matchesHost(host, excludedHost) {

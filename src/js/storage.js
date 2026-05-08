@@ -11,6 +11,7 @@ const DEFAULT_AUTO_CAPTURE_SETTINGS = {
 	project_id: '',
 	project_name: '',
 	delay_seconds: MIN_AUTO_CAPTURE_SECONDS,
+	scroll_capture_enabled: false,
 	exclude_sites: [],
 };
 
@@ -66,6 +67,7 @@ function normalizeAutoCaptureSettings(settings) {
 		project_id: raw.project_id || '',
 		project_name: raw.project_name || '',
 		delay_seconds: delaySeconds,
+		scroll_capture_enabled: Boolean(raw.scroll_capture_enabled),
 		exclude_sites: normalizeStringList(raw.exclude_sites),
 	};
 }
