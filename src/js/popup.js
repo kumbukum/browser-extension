@@ -1,5 +1,13 @@
 import browser from 'webextension-polyfill';
-import { getAllSettings, getAccounts, getActiveAccountId, setActiveAccount } from './storage.js';
+import {
+	getAllSettings,
+	getAccounts,
+	getActiveAccountId,
+	setActiveAccount,
+} from './storage.js';
+import {
+	postUrlToKumbukum,
+} from './url-capture.js';
 import EasyMDE from 'easymde';
 import { marked } from 'marked';
 import 'easymde/dist/easymde.min.css';
@@ -175,24 +183,12 @@ async function apiSaveUrl() {
 	if (!_currentTab || !_currentTab.url) {
 		throw new Error('No active tab found.');
 	}
-	const response = await fetch(_settings.urls_create_url, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'Authorization': `Token ${_settings.access_token}`,
-		},
-		body: JSON.stringify({
-			url: _currentTab.url,
-			title: _currentTab.title || '',
-			project: _settings.project_id,
-		}),
+
+	return postUrlToKumbukum(_settings, {
+		url: _currentTab.url,
+		title: _currentTab.title || '',
+		project_id: _settings.project_id,
 	});
-	if (!response.ok) {
-		const data = await response.json().catch(function () { return {}; });
-		throw new Error(data.error || `HTTP ${response.status}`);
-	}
-	const data = await response.json();
-	return data.url || data;
 }
 
 async function apiSaveNote() {

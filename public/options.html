@@ -103,6 +103,44 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2>Automatic URL Capture</h2>
+
+      <label class="checkbox-row" for="auto-capture-enabled">
+        <input type="checkbox" id="auto-capture-enabled">
+        <span>Enable automatic URL capture</span>
+      </label>
+
+      <div class="form-group">
+        <label for="auto-capture-account">Account</label>
+        <select id="auto-capture-account" class="input">
+          <option value="">-- Select account --</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="auto-capture-project">Project</label>
+        <select id="auto-capture-project" class="input">
+          <option value="">-- Select project --</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="auto-capture-delay">Capture after seconds</label>
+        <input type="number" id="auto-capture-delay" class="input" min="30" step="1" value="30">
+        <p class="help-text">Minimum is 30 seconds.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="auto-capture-exclude-sites">Exclude sites</label>
+        <textarea id="auto-capture-exclude-sites" class="input textarea" rows="5" placeholder="example.com&#10;docs.example.com/private"></textarea>
+        <p class="help-text">One domain or URL path per line. Email, search, AI, and likely private app sites are excluded by default.</p>
+      </div>
+
+      <button id="btn-save-autocapture" class="btn btn-primary">Save Autocapture Settings</button>
+      <div id="auto-capture-status" class="status" style="display:none;"></div>
+    </div>
+
     <!-- About section -->
     <div class="card">
       <h2>About</h2>
@@ -114,4 +152,3 @@
   <script src="options.js"></script>
 </body>
 </html>
-

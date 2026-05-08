@@ -3,6 +3,16 @@ import browser from 'webextension-polyfill';
 
 const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
 const LOCAL_DEV_INSTANCE_URL = 'http://localhost:3000';
+const MIN_AUTO_CAPTURE_SECONDS = 30;
+
+const DEFAULT_AUTO_CAPTURE_SETTINGS = {
+	enabled: false,
+	account_id: '',
+	project_id: '',
+	project_name: '',
+	delay_seconds: MIN_AUTO_CAPTURE_SECONDS,
+	exclude_sites: [],
+};
 
 // --- Internal helpers ---
 
@@ -43,6 +53,28 @@ function computeApiUrls(obj) {
 	obj.mailbox_sync_url = `${base}/api/v1/mailbox/sync`;
 	obj.mailbox_status_url = `${base}/api/v1/mailbox/status`;
 	return obj;
+}
+
+function normalizeAutoCaptureSettings(settings) {
+	const raw = settings && typeof settings === 'object' ? settings : {};
+	const delaySeconds = Math.max(MIN_AUTO_CAPTURE_SECONDS, parseInt(raw.delay_seconds, 10) || MIN_AUTO_CAPTURE_SECONDS);
+	return {
+		...DEFAULT_AUTO_CAPTURE_SETTINGS,
+		...raw,
+		enabled: Boolean(raw.enabled),
+		account_id: raw.account_id || '',
+		project_id: raw.project_id || '',
+		project_name: raw.project_name || '',
+		delay_seconds: delaySeconds,
+		exclude_sites: normalizeStringList(raw.exclude_sites),
+	};
+}
+
+function normalizeStringList(value) {
+	const values = Array.isArray(value) ? value : [];
+	return Array.from(new Set(values.map(function (item) {
+		return String(item || '').trim();
+	}).filter(Boolean)));
 }
 
 // --- Public API ---
@@ -121,13 +153,38 @@ async function getAllSettings() {
 	return computeApiUrls({ ...account });
 }
 
+async function getAccountSettings(accountId) {
+	const { accounts } = await _read();
+	const account = accounts.find(function (a) { return a.id === accountId; });
+	if (!account) return {};
+	return computeApiUrls({ ...account });
+}
+
+async function getAutoCaptureSettings() {
+	const data = await browser.storage.local.get(['auto_capture_settings']);
+	return normalizeAutoCaptureSettings(data.auto_capture_settings);
+}
+
+async function updateAutoCaptureSettings(fields) {
+	const current = await getAutoCaptureSettings();
+	const next = normalizeAutoCaptureSettings({
+		...current,
+		...(fields || {}),
+	});
+	await browser.storage.local.set({ auto_capture_settings: next });
+	return next;
+}
+
 export {
 	getAccounts,
 	getActiveAccountId,
 	getActiveAccount,
+	getAccountSettings,
 	setActiveAccount,
 	addAccount,
 	updateAccount,
 	deleteAccount,
 	getAllSettings,
+	getAutoCaptureSettings,
+	updateAutoCaptureSettings,
 };

@@ -14,39 +14,20 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'
 const version = packageJson.version
 
 const manifestPath = path.join(srcDir, 'manifest.json')
-const firefoxManifestPath = path.join(srcDir, 'manifest.firefox.json')
 const defaultManifest = JSON.parse(fs.readFileSync(manifestPath).toString())
-const firefoxManifest = JSON.parse(fs.readFileSync(firefoxManifestPath).toString())
 
 // Update manifest versions from package.json
 defaultManifest.version = version
-firefoxManifest.version = version
 
 const isDev = process.env.NODE_ENV === 'development'
-const isFirefox = process.env.BROWSER === 'firefox'
-
-function getManifest() {
-	return isFirefox ? firefoxManifest : defaultManifest
-}
 
 function getEntryPoints() {
-	const baseEntries = {
+	return {
 		options: path.join(srcDir, 'js', 'options.js'),
 		popup: path.join(srcDir, 'js', 'popup.js'),
 		email_extractor: path.join(srcDir, 'js', 'email-extractor.js'),
 		page_bridge: path.join(srcDir, 'js', 'page-bridge.js'),
-	}
-
-	if (isFirefox) {
-		return {
-			...baseEntries,
-			background: path.join(srcDir, 'js', 'background.firefox.js'),
-		}
-	} else {
-		return {
-			...baseEntries,
-			background: path.join(srcDir, 'js', 'background.js'),
-		}
+		background: path.join(srcDir, 'js', 'background.js'),
 	}
 }
 
@@ -57,7 +38,7 @@ var common = {
 	},
 	entry: getEntryPoints(),
 	output: {
-		path: path.join(rootDir, isFirefox ? 'build-firefox' : 'build'),
+		path: destDir,
 		filename: '[name].js',
 	},
 	module: {
@@ -76,17 +57,16 @@ var common = {
 			patterns: [
 				{
 					from: path.join(rootDir, 'public'),
-					to: isFirefox ? path.join(rootDir, 'build-firefox') : destDir,
+					to: destDir,
 					globOptions: {
 						ignore: ['**/.DS_Store'],
 					},
 				},
 			],
 		}),
-		new GenerateJsonPlugin('manifest.json', getManifest(), null, 2),
+		new GenerateJsonPlugin('manifest.json', defaultManifest, null, 2),
 		new webpack.DefinePlugin({
 			'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-			'process.env.BROWSER': JSON.stringify(process.env.BROWSER || 'chrome'),
 		}),
 	],
 }
