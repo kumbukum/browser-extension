@@ -133,8 +133,8 @@
 
       <div class="form-group">
         <label for="auto-capture-exclude-sites">Exclude sites</label>
-        <textarea id="auto-capture-exclude-sites" class="input textarea" rows="5" placeholder="example.com&#10;docs.example.com/private"></textarea>
-        <p class="help-text">One domain or URL path per line. Email, search, AI, and likely private app sites are excluded by default.</p>
+        <textarea id="auto-capture-exclude-sites" class="input textarea" rows="5" placeholder="example.com&#10;*.example.com&#10;docs.example.com/private"></textarea>
+        <p class="help-text">One domain or URL path per line. Use *.example.com to exclude the main domain and all subdomains. Email, search, AI, and private app sites are skipped by default.</p>
       </div>
 
       <button id="btn-save-autocapture" class="btn btn-primary">Save Autocapture Settings</button>

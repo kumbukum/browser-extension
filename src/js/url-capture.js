@@ -167,15 +167,17 @@ function matchesUserExclude(parsedUrl, excludeSite) {
 	if (!normalizedExclude) return false;
 
 	if (normalizedExclude.includes('/')) {
-		const urlWithoutScheme = (parsedUrl.hostname + parsedUrl.pathname).toLowerCase();
-		return urlWithoutScheme.startsWith(normalizedExclude);
+		const slashIndex = normalizedExclude.indexOf('/');
+		const excludedHost = normalizeExcludedHostPattern(normalizedExclude.slice(0, slashIndex));
+		const excludedPath = normalizedExclude.slice(slashIndex).toLowerCase();
+		return matchesHost(parsedUrl.hostname.toLowerCase(), excludedHost) && parsedUrl.pathname.toLowerCase().startsWith(excludedPath);
 	}
 
-	if (normalizedExclude.startsWith('*.')) {
-		return matchesHost(parsedUrl.hostname.toLowerCase(), normalizedExclude.slice(2));
-	}
+	return matchesHost(parsedUrl.hostname.toLowerCase(), normalizeExcludedHostPattern(normalizedExclude));
+}
 
-	return matchesHost(parsedUrl.hostname.toLowerCase(), normalizedExclude);
+function normalizeExcludedHostPattern(hostPattern) {
+	return hostPattern.toLowerCase().replace(/^\*\.?/, '');
 }
 
 function matchesHost(host, excludedHost) {
