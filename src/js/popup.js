@@ -8,6 +8,9 @@ import {
 import {
 	postUrlToKumbukum,
 } from './url-capture.js';
+import {
+	saveEmailToKumbukum,
+} from './email-utils.js';
 import EasyMDE from 'easymde';
 import { marked } from 'marked';
 import 'easymde/dist/easymde.min.css';
@@ -429,7 +432,7 @@ async function saveEmail() {
 			throw new Error('No email found on this page.');
 		}
 		showStatus(statusEl, 'Adding email...', 'info');
-		await apiSaveEmail(candidate);
+		await saveEmailToKumbukum(_settings, candidate, _currentTab);
 		showStatus(statusEl, 'Email added!', 'success');
 	} catch (err) {
 		showStatus(statusEl, 'Failed: ' + err.message, 'error');

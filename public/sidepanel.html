@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kumbukum Email</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <main class="sidepanel-shell">
+    <header class="sidepanel-header">
+      <div class="brand-mark">K</div>
+      <div>
+        <h1>How can we help?</h1>
+        <p id="email-context" class="email-context">Checking current tab...</p>
+      </div>
+    </header>
+
+    <section id="warning-view" class="panel-card panel-warning" style="display:none;">
+      <p id="warning-message">Please configure Kumbukum first.</p>
+      <button id="btn-open-settings" class="btn btn-primary btn-full" type="button">Open Settings</button>
+    </section>
+
+    <section id="main-view" style="display:none;">
+      <div class="actions-grid">
+        <button id="btn-add-email" class="btn btn-outline" type="button">Add Email</button>
+        <button id="btn-summarize" class="btn btn-outline" type="button">Summarize email</button>
+        <button id="btn-suggest-reply" class="btn btn-outline" type="button">Suggest a reply</button>
+        <button id="btn-add-note" class="btn btn-outline" type="button">Add note</button>
+        <button id="btn-show-related" class="btn btn-outline btn-wide" type="button">Show related</button>
+      </div>
+
+      <div id="status" class="status" style="display:none;"></div>
+
+      <section id="summary-section" class="panel-card" style="display:none;">
+        <h2>Summary</h2>
+        <p id="summary-output"></p>
+      </section>
+
+      <section id="reply-section" class="panel-card" style="display:none;">
+        <h2>Reply options</h2>
+        <div id="reply-output"></div>
+      </section>
+
+      <section id="note-section" class="panel-card" style="display:none;">
+        <h2>Add note</h2>
+        <textarea id="note-input" class="textarea" rows="5"></textarea>
+        <div class="button-row">
+          <button id="btn-cancel-note" class="btn btn-secondary" type="button">Cancel</button>
+          <button id="btn-save-note" class="btn btn-primary" type="button">Save note</button>
+        </div>
+      </section>
+
+      <section id="related-section" class="panel-card" style="display:none;">
+        <h2>Related</h2>
+        <div id="related-output"></div>
+      </section>
+    </section>
+
+    <footer class="ai-composer">
+      <input id="ai-input" class="ai-input" type="text" autocomplete="off">
+      <button id="btn-ask-ai" class="btn btn-primary btn-send" type="button">Ask</button>
+    </footer>
+  </main>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
