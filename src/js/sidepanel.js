@@ -13,17 +13,24 @@ import {
 	getAllSettings,
 } from './storage.js';
 
+const EMAIL_CHANGE_POLL_MS = 1500;
+
 let _settings = {};
 let _currentTab = null;
 let _emailCandidate = null;
 let _emailRecord = null;
+let _emailFingerprint = '';
 let _relatedLoaded = false;
 let _currentNotes = [];
 let _noteEditorMode = 'add';
 let _noteEditorNoteId = '';
 let _noteEditorParentId = '';
+let _emailChangeTimer = null;
+let _emailDetectionInFlight = false;
+let _activeActionCount = 0;
 
 document.addEventListener('DOMContentLoaded', init);
+window.addEventListener('beforeunload', stopEmailChangeMonitor);
 
 async function init() {
 	bindEvents();
@@ -92,41 +99,146 @@ async function loadSettingsAndTab() {
 	_currentTab = tabs[0] || null;
 	showMain();
 	await detectCurrentEmail();
+	startEmailChangeMonitor();
 }
 
 async function detectCurrentEmail() {
-	setEmailContext('Checking current tab...');
-	setEmailActionsEnabled(false);
-	_emailCandidate = null;
-	_emailRecord = null;
-	_relatedLoaded = false;
-	_currentNotes = [];
-	renderInternalNotes([]);
-
-	if (!_currentTab || !_currentTab.id || !_currentTab.url || !/^https?:\/\//i.test(_currentTab.url)) {
-		setEmailContext('Open an email page first.');
-		showStatus('Open an email page first.', 'info');
+	if (_emailDetectionInFlight) {
 		return;
 	}
 
+	_emailDetectionInFlight = true;
 	try {
-		_emailCandidate = await detectEmailCandidate(_currentTab, { allowInteractiveSource: false });
-		if (!_emailCandidate || !isSaveableEmailCandidate(_emailCandidate)) {
-			setEmailContext('Email app detected. Open an email first.');
-			showStatus('Open an email first, then click Kumbukum again.', 'info');
+		setEmailContext('Checking current tab...');
+		setEmailActionsEnabled(false);
+		clearCurrentEmailState();
+
+		if (!_currentTab || !_currentTab.id || !_currentTab.url || !/^https?:\/\//i.test(_currentTab.url)) {
+			setEmailContext('Open an email page first.');
+			showStatus('Open an email page first.', 'info');
 			return;
 		}
 
-		const subject = getEmailDisplaySubject(_emailCandidate, _currentTab) || '(No subject)';
-		const from = _emailCandidate.from ? ' from ' + _emailCandidate.from : '';
-		setEmailContext(subject + from);
-		setEmailActionsEnabled(true);
-		hideStatus();
-		await hydrateSavedEmail();
+		const candidate = await detectEmailCandidate(_currentTab, { allowInteractiveSource: false });
+		await applyDetectedEmailCandidate(candidate, {
+			noEmailStatus: 'Open an email first, then click Kumbukum again.',
+		});
 	} catch (_err) {
 		setEmailContext('Could not inspect this email page.');
 		showStatus('Could not inspect this email page.', 'error');
+	} finally {
+		_emailDetectionInFlight = false;
 	}
+}
+
+function startEmailChangeMonitor() {
+	stopEmailChangeMonitor();
+	_emailChangeTimer = window.setInterval(function () {
+		void refreshCurrentEmailIfChanged();
+	}, EMAIL_CHANGE_POLL_MS);
+	document.addEventListener('visibilitychange', handleVisibilityChange);
+	browser.tabs.onActivated.addListener(handleActiveTabChanged);
+	browser.tabs.onUpdated.addListener(handleTabUpdated);
+}
+
+function stopEmailChangeMonitor() {
+	if (_emailChangeTimer) {
+		window.clearInterval(_emailChangeTimer);
+		_emailChangeTimer = null;
+	}
+	document.removeEventListener('visibilitychange', handleVisibilityChange);
+	browser.tabs.onActivated.removeListener(handleActiveTabChanged);
+	browser.tabs.onUpdated.removeListener(handleTabUpdated);
+}
+
+function handleVisibilityChange() {
+	if (!document.hidden) {
+		void refreshCurrentEmailIfChanged({ force: true });
+	}
+}
+
+function handleActiveTabChanged() {
+	void refreshCurrentEmailIfChanged({ force: true });
+}
+
+function handleTabUpdated(tabId, changeInfo) {
+	if (!_currentTab || tabId !== _currentTab.id) {
+		return;
+	}
+	if (changeInfo.url || changeInfo.status === 'complete' || changeInfo.title) {
+		void refreshCurrentEmailIfChanged({ force: true });
+	}
+}
+
+async function refreshCurrentEmailIfChanged(options) {
+	const opts = options || {};
+	if (!_settings.instance_url || !_settings.access_token || !_settings.project_id) {
+		return;
+	}
+	if (!opts.force && document.hidden) {
+		return;
+	}
+	if (_emailDetectionInFlight || _activeActionCount > 0) {
+		return;
+	}
+
+	_emailDetectionInFlight = true;
+	try {
+		const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+		const tab = tabs[0] || null;
+		const nextCandidate = tab && tab.id && tab.url && /^https?:\/\//i.test(tab.url)
+			? await detectEmailCandidate(tab, { allowInteractiveSource: false })
+			: null;
+		const nextFingerprint = nextCandidate && isSaveableEmailCandidate(nextCandidate)
+			? getEmailCandidateFingerprint(nextCandidate, tab)
+			: '';
+
+		if (nextFingerprint === _emailFingerprint) {
+			_currentTab = tab || _currentTab;
+			return;
+		}
+
+		_currentTab = tab;
+		await applyDetectedEmailCandidate(nextCandidate, {
+			noEmailStatus: 'Open an email first.',
+		});
+	} catch (_err) {
+		// Polling is best-effort; explicit button actions still surface errors.
+	} finally {
+		_emailDetectionInFlight = false;
+	}
+}
+
+async function applyDetectedEmailCandidate(candidate, options) {
+	const opts = options || {};
+	clearCurrentEmailState();
+	_emailCandidate = candidate;
+
+	if (!_emailCandidate || !isSaveableEmailCandidate(_emailCandidate)) {
+		setEmailContext('Email app detected. Open an email first.');
+		showStatus(opts.noEmailStatus || 'Open an email first.', 'info');
+		setEmailActionsEnabled(false);
+		return;
+	}
+
+	_emailFingerprint = getEmailCandidateFingerprint(_emailCandidate, _currentTab);
+	const subject = getEmailDisplaySubject(_emailCandidate, _currentTab) || '(No subject)';
+	const from = _emailCandidate.from ? ' from ' + _emailCandidate.from : '';
+	setEmailContext(subject + from);
+	setEmailActionsEnabled(true);
+	hideStatus();
+	await hydrateSavedEmail();
+}
+
+function clearCurrentEmailState() {
+	_emailCandidate = null;
+	_emailRecord = null;
+	_emailFingerprint = '';
+	_relatedLoaded = false;
+	_currentNotes = [];
+	closeNoteEditor();
+	resetEmailOutputSections();
+	renderInternalNotes([]);
 }
 
 async function addEmail() {
@@ -353,6 +465,7 @@ async function loadInternalNotes() {
 
 async function withButton(button, busyText, fn) {
 	const originalText = button ? button.textContent : '';
+	_activeActionCount += 1;
 	if (button) {
 		button.disabled = true;
 		button.textContent = busyText;
@@ -362,6 +475,7 @@ async function withButton(button, busyText, fn) {
 	} catch (err) {
 		showStatus('Failed: ' + (err.message || 'Action failed'), 'error');
 	} finally {
+		_activeActionCount = Math.max(0, _activeActionCount - 1);
 		if (button) {
 			button.disabled = false;
 			button.textContent = originalText;
@@ -422,6 +536,39 @@ function showStatus(message, type) {
 function hideStatus() {
 	const el = document.getElementById('status');
 	el.style.display = 'none';
+}
+
+function resetEmailOutputSections() {
+	[
+		'summary-section',
+		'reply-section',
+		'related-section',
+		'ai-response-section',
+		'note-section',
+	].forEach(function (id) {
+		const section = document.getElementById(id);
+		if (section) {
+			section.style.display = 'none';
+		}
+	});
+
+	[
+		'summary-output',
+		'reply-output',
+		'related-output',
+		'ai-response-output',
+		'notes-list',
+	].forEach(function (id) {
+		const output = document.getElementById(id);
+		if (output) {
+			output.innerHTML = '';
+		}
+	});
+
+	const input = document.getElementById('ai-input');
+	if (input) {
+		input.value = '';
+	}
 }
 
 function renderSummary(summary) {
@@ -840,6 +987,53 @@ function extractUsefulTokens(value) {
 
 function normalizeSignal(value) {
 	return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function getEmailCandidateFingerprint(candidate, tab) {
+	if (!candidate) {
+		return '';
+	}
+
+	const provider = candidate.provider || inferProviderFromTab(tab);
+	if (candidate.message_id) {
+		return [provider, 'message-id', normalizeFingerprintValue(candidate.message_id)].join('|');
+	}
+
+	return [
+		provider,
+		normalizeFingerprintValue(candidate.subject),
+		normalizeFingerprintValue(candidate.from),
+		normalizeFingerprintValue(candidate.date),
+		hashString([
+			candidate.text_content || '',
+			candidate.html_content || '',
+		].join('\n').slice(0, 12000)),
+	].join('|');
+}
+
+function inferProviderFromTab(tab) {
+	try {
+		const host = new URL((tab && tab.url) || '').hostname.toLowerCase();
+		if (host.includes('app.fastmail.com')) return 'fastmail';
+		if (host.includes('mail.google.com')) return 'gmail';
+		if (host.includes('outlook.')) return 'outlook';
+		return host || 'unknown';
+	} catch (_err) {
+		return 'unknown';
+	}
+}
+
+function normalizeFingerprintValue(value) {
+	return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function hashString(value) {
+	const text = String(value || '');
+	let hash = 0;
+	for (let i = 0; i < text.length; i += 1) {
+		hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+	}
+	return String(hash);
 }
 
 function getItemId(item) {
