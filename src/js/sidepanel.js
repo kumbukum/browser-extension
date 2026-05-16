@@ -43,9 +43,19 @@ function bindEvents() {
 	document.getElementById('btn-show-related')?.addEventListener('click', function () {
 		void showRelated({ force: true });
 	});
+	document.querySelectorAll('[data-ai-prompt]').forEach(function (button) {
+		button.addEventListener('click', function () {
+			const prompt = button.dataset.aiPrompt || button.textContent || '';
+			const input = document.getElementById('ai-input');
+			if (input) input.value = prompt;
+			void askEmailAi(prompt);
+		});
+	});
 	document.getElementById('btn-cancel-note')?.addEventListener('click', closeNoteEditor);
 	document.getElementById('btn-save-note')?.addEventListener('click', saveInternalNote);
-	document.getElementById('btn-ask-ai')?.addEventListener('click', askEmailAi);
+	document.getElementById('btn-ask-ai')?.addEventListener('click', function () {
+		void askEmailAi();
+	});
 	document.querySelectorAll('[data-editor-command]').forEach(function (button) {
 		button.addEventListener('click', function () {
 			applyEditorCommand(button.dataset.editorCommand);
@@ -265,10 +275,11 @@ async function showRelated(options) {
 	}
 }
 
-async function askEmailAi() {
+async function askEmailAi(promptOverride) {
 	const input = document.getElementById('ai-input');
 	const button = document.getElementById('btn-ask-ai');
-	const query = String(input.value || '').trim();
+	const queryValue = typeof promptOverride === 'string' ? promptOverride : input.value;
+	const query = String(queryValue || '').trim();
 	if (!query) return;
 
 	await withButton(button, '...', async function () {
@@ -389,6 +400,9 @@ function setEmailActionsEnabled(enabled) {
 		if (el) el.disabled = !enabled;
 	});
 	document.getElementById('ai-input').disabled = !enabled;
+	document.querySelectorAll('.ai-prompt-button').forEach(function (button) {
+		button.disabled = !enabled;
+	});
 }
 
 function showStatus(message, type) {

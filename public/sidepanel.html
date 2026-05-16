@@ -79,8 +79,16 @@
     </section>
 
     <footer class="ai-composer">
-      <input id="ai-input" class="ai-input" type="text" autocomplete="off">
-      <button id="btn-ask-ai" class="btn btn-primary btn-send" type="button">Ask</button>
+      <div class="ai-prompt-actions" aria-label="Example prompts">
+        <button class="ai-prompt-button" type="button" data-ai-prompt="What is this email asking for?">What is this email asking for?</button>
+        <button class="ai-prompt-button" type="button" data-ai-prompt="What context do we have on this sender?">What context do we have on this sender?</button>
+        <button class="ai-prompt-button" type="button" data-ai-prompt="List follow-up tasks">List follow-up tasks</button>
+        <button class="ai-prompt-button" type="button" data-ai-prompt="Draft a concise reply">Draft a concise reply</button>
+      </div>
+      <div class="ai-composer-row">
+        <input id="ai-input" class="ai-input" type="text" autocomplete="off">
+        <button id="btn-ask-ai" class="btn btn-primary btn-send" type="button">Ask</button>
+      </div>
     </footer>
   </main>
   <script src="sidepanel.js"></script>

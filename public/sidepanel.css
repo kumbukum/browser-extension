@@ -390,14 +390,50 @@ h2 {
 }
 
 .ai-composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px;
-  gap: 8px;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--color-border);
   background: var(--color-bg);
+}
+
+.ai-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-prompt-button {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.ai-prompt-button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: rgba(45, 156, 111, 0.08);
+}
+
+.ai-prompt-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ai-composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .ai-input {
