@@ -486,11 +486,12 @@ function renderRelated(results, candidate) {
 }
 
 function renderAiAnswer(query, answer) {
-	const section = document.getElementById('summary-section');
-	const output = document.getElementById('summary-output');
+	const section = document.getElementById('ai-response-section');
+	const output = document.getElementById('ai-response-output');
 	output.innerHTML = '<div class="related-title">' + escapeHtml(query) + '</div>'
 		+ '<div class="ai-answer">' + escapeHtml(answer || 'No answer returned.') + '</div>';
 	section.style.display = '';
+	section.scrollIntoView({ block: 'nearest' });
 }
 
 function renderInternalNotes(notes) {

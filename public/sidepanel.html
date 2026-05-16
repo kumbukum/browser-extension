@@ -79,6 +79,13 @@
     </section>
 
     <footer class="ai-composer">
+      <section id="ai-response-section" class="panel-card ai-response-card" style="display:none;">
+        <div class="section-header">
+          <h2>Answer</h2>
+          <button class="section-close" type="button" data-close-section="ai-response-section" aria-label="Close answer">x</button>
+        </div>
+        <div id="ai-response-output"></div>
+      </section>
       <div class="ai-prompt-actions" aria-label="Example prompts">
         <button class="ai-prompt-button" type="button" data-ai-prompt="What is this email asking for?">What is this email asking for?</button>
         <button class="ai-prompt-button" type="button" data-ai-prompt="What context do we have on this sender?">What context do we have on this sender?</button>
