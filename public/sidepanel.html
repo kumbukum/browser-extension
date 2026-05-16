@@ -33,26 +33,47 @@
       <div id="status" class="status" style="display:none;"></div>
 
       <section id="summary-section" class="panel-card" style="display:none;">
-        <h2>Summary</h2>
+        <div class="section-header">
+          <h2>Summary</h2>
+          <button class="section-close" type="button" data-close-section="summary-section" aria-label="Close summary">x</button>
+        </div>
         <p id="summary-output"></p>
       </section>
 
       <section id="reply-section" class="panel-card" style="display:none;">
-        <h2>Reply options</h2>
+        <div class="section-header">
+          <h2>Reply options</h2>
+          <button class="section-close" type="button" data-close-section="reply-section" aria-label="Close reply options">x</button>
+        </div>
         <div id="reply-output"></div>
       </section>
 
       <section id="note-section" class="panel-card" style="display:none;">
-        <h2>Add note</h2>
-        <textarea id="note-input" class="textarea" rows="5"></textarea>
-        <div class="button-row">
-          <button id="btn-cancel-note" class="btn btn-secondary" type="button">Cancel</button>
-          <button id="btn-save-note" class="btn btn-primary" type="button">Save note</button>
+        <div class="section-header">
+          <h2>Notes</h2>
+          <button class="section-close" type="button" data-close-section="note-section" aria-label="Close add note">x</button>
+        </div>
+        <div id="notes-list" class="notes-list"></div>
+        <div id="note-editor-panel" class="note-editor-panel" style="display:none;">
+          <div class="editor-toolbar" aria-label="Note formatting">
+            <button type="button" class="editor-tool" data-editor-command="bold">B</button>
+            <button type="button" class="editor-tool" data-editor-command="italic">I</button>
+            <button type="button" class="editor-tool" data-editor-command="insertUnorderedList">•</button>
+            <button type="button" class="editor-tool" data-editor-command="insertOrderedList">1.</button>
+          </div>
+          <div id="note-editor" class="wysiwyg-editor" contenteditable="true"></div>
+          <div class="button-row">
+            <button id="btn-cancel-note" class="btn btn-secondary" type="button">Cancel</button>
+            <button id="btn-save-note" class="btn btn-primary" type="button">Save note</button>
+          </div>
         </div>
       </section>
 
       <section id="related-section" class="panel-card" style="display:none;">
-        <h2>Related</h2>
+        <div class="section-header">
+          <h2>Related</h2>
+          <button class="section-close" type="button" data-close-section="related-section" aria-label="Close related">x</button>
+        </div>
         <div id="related-output"></div>
       </section>
     </section>

@@ -406,6 +406,26 @@
 		return best;
 	}
 
+	function extractOutlookBodyHtml(root) {
+		const pane = root || getOutlookReadingPaneRoot();
+		if (!pane) {
+			return '';
+		}
+
+		const docs = Array.from(pane.querySelectorAll('[role="document"], article, [aria-label="Message body"]'));
+		let best = '';
+		let bestTextLength = 0;
+		for (let i = 0; i < docs.length; i += 1) {
+			const text = (docs[i].innerText || docs[i].textContent || '').replace(/^[\uE000-\uF8FF\s]+/, '').trim();
+			if (text.length > bestTextLength) {
+				best = docs[i].innerHTML || '';
+				bestTextLength = text.length;
+			}
+		}
+
+		return best;
+	}
+
 	function extractOutlookHeaderIds(item) {
 		const itemObject = item || {};
 		const references = [];
@@ -500,6 +520,7 @@
 			itemId: (item && item.ItemId && item.ItemId.Id) || (rowData && rowData.latestItemId) || '',
 			conversationId: (item && item.ConversationId && item.ConversationId.Id) || (rowData && rowData.conversationId) || '',
 			bodyText: extractOutlookBodyText(readingPaneRoot),
+			bodyHtml: extractOutlookBodyHtml(readingPaneRoot),
 		};
 	}
 
@@ -560,6 +581,7 @@
 				htmlToText(fallbackBodyValue),
 				visibleBodyText,
 			]),
+			bodyHtml: firstNonEmptyString([htmlBody, fallbackBodyValue]),
 		};
 	}
 

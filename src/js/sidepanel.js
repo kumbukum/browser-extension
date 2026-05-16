@@ -18,6 +18,10 @@ let _currentTab = null;
 let _emailCandidate = null;
 let _emailRecord = null;
 let _relatedLoaded = false;
+let _currentNotes = [];
+let _noteEditorMode = 'add';
+let _noteEditorNoteId = '';
+let _noteEditorParentId = '';
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -33,13 +37,25 @@ function bindEvents() {
 	document.getElementById('btn-add-email')?.addEventListener('click', addEmail);
 	document.getElementById('btn-summarize')?.addEventListener('click', summarizeEmail);
 	document.getElementById('btn-suggest-reply')?.addEventListener('click', suggestReplies);
-	document.getElementById('btn-add-note')?.addEventListener('click', openNoteEditor);
+	document.getElementById('btn-add-note')?.addEventListener('click', function () {
+		openNoteEditor();
+	});
 	document.getElementById('btn-show-related')?.addEventListener('click', function () {
 		void showRelated({ force: true });
 	});
 	document.getElementById('btn-cancel-note')?.addEventListener('click', closeNoteEditor);
 	document.getElementById('btn-save-note')?.addEventListener('click', saveInternalNote);
 	document.getElementById('btn-ask-ai')?.addEventListener('click', askEmailAi);
+	document.querySelectorAll('[data-editor-command]').forEach(function (button) {
+		button.addEventListener('click', function () {
+			applyEditorCommand(button.dataset.editorCommand);
+		});
+	});
+	document.querySelectorAll('[data-close-section]').forEach(function (button) {
+		button.addEventListener('click', function () {
+			closeSection(button.dataset.closeSection);
+		});
+	});
 	document.getElementById('ai-input')?.addEventListener('keydown', function (event) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
@@ -74,6 +90,8 @@ async function detectCurrentEmail() {
 	_emailCandidate = null;
 	_emailRecord = null;
 	_relatedLoaded = false;
+	_currentNotes = [];
+	renderInternalNotes([]);
 
 	if (!_currentTab || !_currentTab.id || !_currentTab.url || !/^https?:\/\//i.test(_currentTab.url)) {
 		setEmailContext('Open an email page first.');
@@ -94,7 +112,7 @@ async function detectCurrentEmail() {
 		setEmailContext(subject + from);
 		setEmailActionsEnabled(true);
 		hideStatus();
-		void showRelated({ auto: true });
+		await hydrateSavedEmail();
 	} catch (_err) {
 		setEmailContext('Could not inspect this email page.');
 		showStatus('Could not inspect this email page.', 'error');
@@ -105,6 +123,7 @@ async function addEmail() {
 	const button = document.getElementById('btn-add-email');
 	await withButton(button, 'Adding...', async function () {
 		await ensureEmailRecord();
+		await loadInternalNotes();
 		showStatus('Email added.', 'success');
 	});
 }
@@ -143,34 +162,69 @@ async function suggestReplies() {
 	});
 }
 
-function openNoteEditor() {
+function openNoteEditor(options) {
+	const opts = options || {};
+	_noteEditorMode = opts.mode || 'add';
+	_noteEditorNoteId = opts.noteId || '';
+	_noteEditorParentId = opts.parentNoteId || '';
 	document.getElementById('note-section').style.display = '';
-	document.getElementById('note-input').focus();
+	document.getElementById('note-editor-panel').style.display = '';
+	setEditorHtml(opts.content || '');
+	document.getElementById('note-editor').focus();
 }
 
 function closeNoteEditor() {
-	document.getElementById('note-section').style.display = 'none';
-	document.getElementById('note-input').value = '';
+	document.getElementById('note-editor-panel').style.display = 'none';
+	setEditorHtml('');
+	_noteEditorMode = 'add';
+	_noteEditorNoteId = '';
+	_noteEditorParentId = '';
+	if (_currentNotes.length === 0) {
+		document.getElementById('note-section').style.display = 'none';
+	}
+}
+
+function closeSection(sectionId) {
+	const section = document.getElementById(sectionId);
+	if (!section) return;
+	section.style.display = 'none';
+	if (sectionId === 'note-section') {
+		closeNoteEditor();
+	}
 }
 
 async function saveInternalNote() {
 	const button = document.getElementById('btn-save-note');
 	await withButton(button, 'Saving...', async function () {
-		const text = document.getElementById('note-input').value.trim();
+		const editor = document.getElementById('note-editor');
+		const text = (editor.textContent || '').trim();
 		if (!text) {
 			throw new Error('Write a note first.');
 		}
 		const email = await ensureEmailRecord();
 		const id = getItemId(email);
-		await apiRequest(_settings, '/emails/' + encodeURIComponent(id) + '/internal-notes', {
-			method: 'POST',
-			body: JSON.stringify({
-				content: plainTextToHtml(text),
-				text_content: text,
-			}),
-		});
+		const mode = _noteEditorMode;
+		const payload = {
+			content: sanitizeNoteHtml(editor.innerHTML || ''),
+			text_content: text,
+		};
+		if (mode === 'reply') {
+			payload.parent_note = _noteEditorParentId;
+		}
+		if (mode === 'edit') {
+			await apiRequest(_settings, '/emails/' + encodeURIComponent(id) + '/internal-notes/' + encodeURIComponent(_noteEditorNoteId), {
+				method: 'PUT',
+				body: JSON.stringify(payload),
+			});
+		} else {
+			await apiRequest(_settings, '/emails/' + encodeURIComponent(id) + '/internal-notes', {
+				method: 'POST',
+				body: JSON.stringify(payload),
+			});
+		}
 		closeNoteEditor();
-		showStatus('Note added.', 'success');
+		await loadInternalNotes();
+		showStatus(mode === 'edit' ? 'Note updated.' : 'Note added.', 'success');
 	});
 }
 
@@ -192,7 +246,7 @@ async function showRelated(options) {
 			method: 'POST',
 			body: JSON.stringify({
 				query: buildRelatedQuery(_emailCandidate),
-				per_page: 3,
+				per_page: 5,
 				options: {
 					group: true,
 					includeEmails: true,
@@ -200,7 +254,7 @@ async function showRelated(options) {
 			}),
 		});
 		_relatedLoaded = true;
-		renderRelated(data.results || {});
+		renderRelated(data.results || {}, _emailCandidate);
 		if (!opts.auto) {
 			showStatus('Related knowledge loaded.', 'success');
 		}
@@ -247,6 +301,43 @@ async function ensureEmailRecord() {
 	_emailCandidate = candidate;
 	_emailRecord = await saveEmailToKumbukum(_settings, candidate, _currentTab);
 	return _emailRecord;
+}
+
+async function hydrateSavedEmail() {
+	if (!_emailCandidate || !_emailCandidate.message_id) {
+		return;
+	}
+
+	try {
+		const data = await apiRequest(_settings, '/emails/triage-status?message_id=' + encodeURIComponent(_emailCandidate.message_id) + '&include=email&limit=1', {
+			method: 'GET',
+		});
+		const status = Array.isArray(data.statuses) ? data.statuses[0] : null;
+		if (!status) {
+			return;
+		}
+		_emailRecord = status.email || {
+			_id: status.email_id,
+			id: status.email_id,
+			message_id: status.message_id,
+			subject: status.subject,
+		};
+		await loadInternalNotes();
+	} catch (_err) {
+		// Existing-note lookup is best-effort; saving remains available.
+	}
+}
+
+async function loadInternalNotes() {
+	if (!_emailRecord || !getItemId(_emailRecord)) {
+		return;
+	}
+
+	const data = await apiRequest(_settings, '/emails/' + encodeURIComponent(getItemId(_emailRecord)) + '/internal-notes', {
+		method: 'GET',
+	});
+	_currentNotes = Array.isArray(data.notes) ? data.notes : [];
+	renderInternalNotes(_currentNotes);
 }
 
 async function withButton(button, busyText, fn) {
@@ -360,10 +451,10 @@ function renderReplies(replies) {
 	section.style.display = '';
 }
 
-function renderRelated(results) {
+function renderRelated(results, candidate) {
 	const section = document.getElementById('related-section');
 	const output = document.getElementById('related-output');
-	const items = flattenSearchResults(results).slice(0, 8);
+	const items = filterRelatedItems(flattenSearchResults(results), candidate).slice(0, 6);
 	if (!items.length) {
 		output.textContent = 'No related knowledge found.';
 		section.style.display = '';
@@ -388,6 +479,221 @@ function renderAiAnswer(query, answer) {
 	section.style.display = '';
 }
 
+function renderInternalNotes(notes) {
+	const section = document.getElementById('note-section');
+	const list = document.getElementById('notes-list');
+	if (!section || !list) return;
+
+	const hasEditor = document.getElementById('note-editor-panel')?.style.display !== 'none';
+	if (!Array.isArray(notes) || notes.length === 0) {
+		list.innerHTML = '';
+		if (!hasEditor) {
+			section.style.display = 'none';
+		}
+		return;
+	}
+
+	section.style.display = '';
+	list.innerHTML = groupInternalNotes(notes).map(function (note) {
+		return renderInternalNote(note, 0);
+	}).join('');
+	bindInternalNoteActions();
+}
+
+function groupInternalNotes(notes) {
+	const byId = new Map();
+	const roots = [];
+	(notes || []).forEach(function (note) {
+		const copy = {
+			...note,
+			_children: [],
+		};
+		byId.set(internalNoteId(copy), copy);
+	});
+	byId.forEach(function (note) {
+		const parentId = internalNoteParentId(note);
+		const parent = parentId ? byId.get(parentId) : null;
+		if (parent) {
+			parent._children.push(note);
+		} else {
+			roots.push(note);
+		}
+	});
+	byId.forEach(function (note) {
+		note._children.sort(function (a, b) {
+			return internalNoteTime(a) - internalNoteTime(b);
+		});
+	});
+	roots.sort(function (a, b) {
+		return internalNoteTime(b) - internalNoteTime(a);
+	});
+	return roots;
+}
+
+function renderInternalNote(note, depth) {
+	const id = internalNoteId(note);
+	const children = note._children || [];
+	const hasReplies = children.length > 0;
+	const depthClass = depth > 0 ? ' internal-note-reply' : '';
+	return '<div class="internal-note' + depthClass + '" data-note-id="' + escapeHtml(id) + '">'
+		+ '<div class="internal-note-meta">'
+		+ '<span>' + escapeHtml(internalNoteOwner(note)) + '</span>'
+		+ '<time>' + escapeHtml(formatDateTime(note.createdAt || note.updatedAt)) + '</time>'
+		+ '</div>'
+		+ '<div class="internal-note-body">' + sanitizeNoteHtml(internalNoteContent(note)) + '</div>'
+		+ '<div class="internal-note-actions">'
+		+ '<button type="button" class="note-action note-reply" data-note-id="' + escapeHtml(id) + '">Reply</button>'
+		+ '<button type="button" class="note-action note-edit" data-note-id="' + escapeHtml(id) + '">Edit</button>'
+		+ (hasReplies ? '' : '<button type="button" class="note-action note-action-danger note-delete" data-note-id="' + escapeHtml(id) + '">Delete</button>')
+		+ '</div>'
+		+ (children.length
+			? '<div class="internal-note-replies">' + children.map(function (child) {
+				return renderInternalNote(child, depth + 1);
+			}).join('') + '</div>'
+			: '')
+		+ '</div>';
+}
+
+function bindInternalNoteActions() {
+	document.querySelectorAll('.note-reply').forEach(function (button) {
+		button.addEventListener('click', function () {
+			openNoteEditor({
+				mode: 'reply',
+				parentNoteId: button.dataset.noteId || '',
+			});
+		});
+	});
+	document.querySelectorAll('.note-edit').forEach(function (button) {
+		button.addEventListener('click', function () {
+			const note = findInternalNote(button.dataset.noteId || '');
+			if (!note) return;
+			openNoteEditor({
+				mode: 'edit',
+				noteId: internalNoteId(note),
+				content: internalNoteContent(note),
+			});
+		});
+	});
+	document.querySelectorAll('.note-delete').forEach(function (button) {
+		button.addEventListener('click', function () {
+			void deleteInternalNote(button.dataset.noteId || '');
+		});
+	});
+}
+
+async function deleteInternalNote(noteId) {
+	if (!noteId) return;
+	const confirmed = window.confirm('Delete this note?');
+	if (!confirmed) return;
+	await withButton(document.querySelector('.note-delete[data-note-id="' + cssEscape(noteId) + '"]'), 'Deleting...', async function () {
+		const email = await ensureEmailRecord();
+		const id = getItemId(email);
+		const clientRequestId = internalNoteClientRequestId();
+		await apiRequest(_settings, '/emails/' + encodeURIComponent(id) + '/internal-notes/' + encodeURIComponent(noteId) + '?client_request_id=' + encodeURIComponent(clientRequestId), {
+			method: 'DELETE',
+		});
+		await loadInternalNotes();
+		showStatus('Note deleted.', 'success');
+	});
+}
+
+function applyEditorCommand(command) {
+	const editor = document.getElementById('note-editor');
+	if (!editor || !command) return;
+	editor.focus();
+	document.execCommand(command, false, null);
+}
+
+function setEditorHtml(html) {
+	const editor = document.getElementById('note-editor');
+	if (!editor) return;
+	editor.innerHTML = sanitizeNoteHtml(html || '');
+}
+
+function findInternalNote(noteId) {
+	return (_currentNotes || []).find(function (note) {
+		return internalNoteId(note) === noteId;
+	});
+}
+
+function objectIdValue(value) {
+	return String(value && value._id || value || '');
+}
+
+function internalNoteId(note) {
+	return objectIdValue(note && (note._id || note.id));
+}
+
+function internalNoteParentId(note) {
+	return objectIdValue(note && note.parent_note);
+}
+
+function internalNoteOwner(note) {
+	if (!note) return 'Team member';
+	return note.owner?.name || note.owner?.email || 'Team member';
+}
+
+function internalNoteContent(note) {
+	return note?.content || plainTextToHtml(note?.text_content || '');
+}
+
+function internalNoteTime(note) {
+	const time = new Date(note?.createdAt || note?.updatedAt || 0).getTime();
+	return Number.isFinite(time) ? time : 0;
+}
+
+function internalNoteClientRequestId() {
+	if (window.crypto?.randomUUID) {
+		return window.crypto.randomUUID();
+	}
+	return String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+}
+
+function formatDateTime(value) {
+	if (!value) return '';
+	const date = new Date(value);
+	if (!Number.isFinite(date.getTime())) return '';
+	return new Intl.DateTimeFormat(undefined, {
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+	}).format(date);
+}
+
+function sanitizeNoteHtml(html) {
+	const template = document.createElement('template');
+	template.innerHTML = String(html || '');
+	const allowedTags = new Set(['A', 'B', 'BR', 'DIV', 'EM', 'I', 'LI', 'OL', 'P', 'STRONG', 'U', 'UL']);
+	Array.from(template.content.querySelectorAll('*')).forEach(function (el) {
+		if (!allowedTags.has(el.tagName)) {
+			el.replaceWith(...Array.from(el.childNodes));
+			return;
+		}
+		Array.from(el.attributes).forEach(function (attr) {
+			if (el.tagName === 'A' && attr.name === 'href') {
+				const href = String(attr.value || '');
+				if (/^(https?:|mailto:)/i.test(href)) {
+					return;
+				}
+			}
+			el.removeAttribute(attr.name);
+		});
+		if (el.tagName === 'A') {
+			el.setAttribute('target', '_blank');
+			el.setAttribute('rel', 'noopener noreferrer');
+		}
+	});
+	return template.innerHTML;
+}
+
+function cssEscape(value) {
+	if (window.CSS?.escape) {
+		return window.CSS.escape(value);
+	}
+	return String(value || '').replace(/"/g, '\\"');
+}
+
 function flattenSearchResults(results) {
 	const items = [];
 	Object.entries(results || {}).forEach(function ([type, result]) {
@@ -397,10 +703,67 @@ function flattenSearchResults(results) {
 				type: formatType(type),
 				title: getResultTitle(type, doc),
 				excerpt: getResultExcerpt(type, doc),
+				distance: typeof hit.vector_distance === 'number' ? hit.vector_distance : null,
 			});
 		});
 	});
 	return items;
+}
+
+function filterRelatedItems(items, candidate) {
+	const signals = buildRelatedSignals(candidate);
+	return items
+		.map(function (item) {
+			return {
+				...item,
+				_score: scoreRelatedItem(item, signals),
+			};
+		})
+		.filter(function (item) {
+			if (item._score >= 3) return true;
+			return item._score >= 2 && (item.distance === null || item.distance <= 0.13);
+		})
+		.sort(function (a, b) {
+			if (b._score !== a._score) return b._score - a._score;
+			if (a.distance === null && b.distance === null) return 0;
+			if (a.distance === null) return 1;
+			if (b.distance === null) return -1;
+			return a.distance - b.distance;
+		});
+}
+
+function buildRelatedSignals(candidate) {
+	const senderEmail = firstEmail(candidate && candidate.from);
+	const senderDomain = senderEmail.split('@')[1] || '';
+	const domains = [
+		senderDomain,
+		...extractDomains(String(candidate && candidate.text_content || '')),
+	].filter(Boolean);
+	const domainTokens = domains.map(normalizeSignal).filter(Boolean);
+	const subjectTokens = extractUsefulTokens(candidate && candidate.subject);
+	return {
+		domainTokens,
+		subjectTokens,
+	};
+}
+
+function scoreRelatedItem(item, signals) {
+	const haystack = normalizeSignal([item.title, item.excerpt].join(' '));
+	if (!haystack) return 0;
+	let score = 0;
+	signals.domainTokens.forEach(function (token) {
+		if (token && haystack.includes(token)) {
+			score += 4;
+		}
+	});
+	let subjectMatches = 0;
+	signals.subjectTokens.forEach(function (token) {
+		if (token && haystack.includes(token)) {
+			subjectMatches += 1;
+		}
+	});
+	score += subjectMatches;
+	return score;
 }
 
 function getResultTitle(type, doc) {
@@ -424,11 +787,44 @@ function formatType(type) {
 
 function buildRelatedQuery(candidate) {
 	const subject = candidate.subject || '';
-	const body = String(candidate.text_content || '').slice(0, 900);
+	const body = extractUsefulTokens(candidate.text_content).slice(0, 12).join(' ');
 	const sender = candidate.from || '';
 	const senderEmail = firstEmail(sender);
 	const senderDomain = senderEmail.split('@')[1] || '';
-	return [subject, sender, senderEmail, senderDomain, body].filter(Boolean).join('\n');
+	const bodyDomains = extractDomains(candidate.text_content).join(' ');
+	return [subject, senderEmail, senderDomain, bodyDomains, body].filter(Boolean).join('\n');
+}
+
+function extractDomains(value) {
+	const text = String(value || '');
+	const domains = [];
+	const urlMatches = text.match(/https?:\/\/[^\s<>"')]+/gi) || [];
+	urlMatches.forEach(function (rawUrl) {
+		try {
+			domains.push(new URL(rawUrl).hostname.replace(/^www\./i, '').toLowerCase());
+		} catch (_err) {}
+	});
+	const emailMatches = text.match(/[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})/gi) || [];
+	emailMatches.forEach(function (email) {
+		const domain = email.split('@')[1];
+		if (domain) domains.push(domain.toLowerCase());
+	});
+	return Array.from(new Set(domains));
+}
+
+function extractUsefulTokens(value) {
+	const stopWords = new Set(['about', 'action', 'administrator', 'because', 'being', 'click', 'court', 'dear', 'during', 'email', 'from', 'have', 'information', 'instructions', 'more', 'please', 'receive', 'sending', 'that', 'this', 'time', 'will', 'with', 'your']);
+	return Array.from(new Set(String(value || '')
+		.toLowerCase()
+		.match(/[a-z0-9]{4,}/g) || []))
+		.filter(function (token) {
+			return !stopWords.has(token);
+		})
+		.slice(0, 24);
+}
+
+function normalizeSignal(value) {
+	return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 function getItemId(item) {

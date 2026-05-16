@@ -392,11 +392,12 @@ async function saveEmailToKumbukum(settings, candidate, tab) {
 	const inReplyToValue = candidate.in_reply_to || candidate.inReplyTo || '';
 	const referencesValue = Array.isArray(candidate.references) ? candidate.references.filter(Boolean) : [];
 	const syntheticRawEmail = buildSyntheticRawEmail(candidate);
-	const preferSyntheticRawEmail = candidate.provider === 'outlook';
+	const preferSyntheticRawEmail = candidate.provider === 'outlook' && !candidate.html_content;
 
 	const basePayload = {
 		source: 'browser-extension',
 		project: settings.project_id,
+		mailbox: 'inbox',
 	};
 
 	const structuredPayload = {
@@ -454,7 +455,7 @@ async function saveEmailToKumbukum(settings, candidate, tab) {
 
 	if (!preferSyntheticRawEmail && candidate.raw_email) {
 		payload.raw_email = candidate.raw_email;
-	} else if (syntheticRawEmail) {
+	} else if (syntheticRawEmail && !candidate.html_content) {
 		payload.raw_email = syntheticRawEmail;
 	}
 
