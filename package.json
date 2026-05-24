@@ -1,7 +1,7 @@
 {
   "name": "kumbukum-browser-extension",
-  "version": "1.4.0",
-  "description": "Save URLs and notes directly to Kumbukum to share with your team and AI assistants.",
+  "version": "1.5.0",
+  "description": "Save URLs,notes, and emails directly to Kumbukum to share with your team and AI assistants.",
   "private": true,
   "scripts": {
     "watch": "webpack --mode=development --watch --config webpack.config.js",
