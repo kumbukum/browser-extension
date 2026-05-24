@@ -2,7 +2,7 @@
 import browser from 'webextension-polyfill';
 import {
 	getAccountSettings,
-	getAutoCaptureSettings,
+	getEnabledAutoCaptureAccounts,
 } from './storage.js';
 import {
 	getAutoCaptureSkipReason,
@@ -10,8 +10,17 @@ import {
 	postUrlToKumbukum,
 } from './url-capture.js';
 
-const AUTO_CAPTURE_ALARM_NAME = 'kumbukum.autoCapture';
+const AUTO_CAPTURE_ALARM_PREFIX = 'kumbukum.autoCapture.';
 const AUTO_CAPTURE_PENDING_KEY = 'auto_capture_pending';
+
+function alarmNameFor(accountId) {
+	return AUTO_CAPTURE_ALARM_PREFIX + accountId;
+}
+
+function accountIdFromAlarm(name) {
+	if (!name || !name.startsWith(AUTO_CAPTURE_ALARM_PREFIX)) return '';
+	return name.slice(AUTO_CAPTURE_ALARM_PREFIX.length);
+}
 const EMAIL_EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
 const SCROLL_CAPTURE_ACTION = 'kumbukum.autoCaptureScrollDepth';
 const SIDEPANEL_PATH = 'sidepanel.html';
@@ -67,14 +76,15 @@ browser.windows.onFocusChanged.addListener(function (windowId) {
 });
 
 browser.storage.onChanged.addListener(function (changes, areaName) {
-	if (areaName === 'local' && changes.auto_capture_settings) {
+	if (areaName === 'sync' && changes.accounts) {
 		void scheduleCurrentActiveTab();
 	}
 });
 
 browser.alarms.onAlarm.addListener(function (alarm) {
-	if (alarm.name === AUTO_CAPTURE_ALARM_NAME) {
-		void handleAutoCaptureAlarm();
+	const accountId = accountIdFromAlarm(alarm && alarm.name);
+	if (accountId) {
+		void handleAutoCaptureAlarm(accountId);
 	}
 });
 
@@ -178,12 +188,15 @@ function isEmailAppUrl(url) {
 	}
 }
 
+async function clearAllAutoCaptureAlarms() {
+	const alarms = await browser.alarms.getAll();
+	await Promise.all(alarms
+		.filter(function (a) { return a && a.name && a.name.startsWith(AUTO_CAPTURE_ALARM_PREFIX); })
+		.map(function (a) { return browser.alarms.clear(a.name); }));
+}
+
 async function scheduleCurrentActiveTab() {
-	const settings = await getAutoCaptureSettings();
-	if (!settings.enabled || !settings.account_id || !settings.project_id) {
-		await clearPendingCapture();
-		return;
-	}
+	const enabledAccounts = await getEnabledAutoCaptureAccounts();
 
 	const tabs = await browser.tabs.query({ active: true, currentWindow: true });
 	const tab = tabs[0];
@@ -192,10 +205,20 @@ async function scheduleCurrentActiveTab() {
 		return;
 	}
 
-	const skipReason = getAutoCaptureSkipReason(tab.url, settings.exclude_sites);
 	const normalizedUrl = normalizeUrlForCapture(tab.url);
-	if (skipReason || !normalizedUrl) {
+	if (!normalizedUrl) {
 		await clearPendingCapture();
+		return;
+	}
+
+	const eligible = enabledAccounts.filter(function (account) {
+		return !getAutoCaptureSkipReason(tab.url, account.auto_capture.exclude_sites);
+	});
+
+	await clearAllAutoCaptureAlarms();
+
+	if (eligible.length === 0) {
+		await pendingStorage.remove(AUTO_CAPTURE_PENDING_KEY);
 		return;
 	}
 
@@ -208,23 +231,24 @@ async function scheduleCurrentActiveTab() {
 			started_at: Date.now(),
 		},
 	});
-	await browser.alarms.clear(AUTO_CAPTURE_ALARM_NAME);
-	await browser.alarms.create(AUTO_CAPTURE_ALARM_NAME, {
-		when: Date.now() + settings.delay_seconds * 1000,
-	});
+
+	const now = Date.now();
+	await Promise.all(eligible.map(function (account) {
+		return browser.alarms.create(alarmNameFor(account.id), {
+			when: now + account.auto_capture.delay_seconds * 1000,
+		});
+	}));
 }
 
-async function handleAutoCaptureAlarm() {
+async function handleAutoCaptureAlarm(accountId) {
 	const data = await pendingStorage.get([AUTO_CAPTURE_PENDING_KEY]);
 	const pending = data[AUTO_CAPTURE_PENDING_KEY];
 	if (!pending || !pending.tab_id || !pending.normalized_url) {
-		await clearPendingCapture();
 		return;
 	}
 
-	const settings = await getAutoCaptureSettings();
-	if (!settings.enabled || !settings.account_id || !settings.project_id) {
-		await clearPendingCapture();
+	const account = await getAccountSettings(accountId);
+	if (!account || !account.id || !account.auto_capture || !account.auto_capture.enabled) {
 		return;
 	}
 
@@ -232,28 +256,20 @@ async function handleAutoCaptureAlarm() {
 	try {
 		tab = await browser.tabs.get(pending.tab_id);
 	} catch (_err) {
-		await clearPendingCapture();
 		return;
 	}
 
 	if (tab.windowId !== pending.window_id) {
-		await clearPendingCapture();
 		return;
 	}
 
-	await captureTabIfEligible(tab, settings, {
+	await captureTabIfEligible(tab, account, {
 		normalized_url: pending.normalized_url,
 		title: pending.title || '',
 	});
-	await clearPendingCapture();
 }
 
 async function handleAutoCaptureScroll(message, sender) {
-	const settings = await getAutoCaptureSettings();
-	if (!settings.enabled || !settings.scroll_capture_enabled || !settings.account_id || !settings.project_id) {
-		return;
-	}
-
 	const tab = sender && sender.tab;
 	if (!tab || !tab.id || !tab.url) {
 		return;
@@ -264,14 +280,23 @@ async function handleAutoCaptureScroll(message, sender) {
 		return;
 	}
 
-	await captureTabIfEligible(tab, settings, {
+	const enabledAccounts = await getEnabledAutoCaptureAccounts();
+	const scrollAccounts = enabledAccounts.filter(function (account) {
+		return account.auto_capture.scroll_capture_enabled;
+	});
+	if (scrollAccounts.length === 0) return;
+
+	const pendingContext = {
 		normalized_url: normalizedMessageUrl,
 		title: tab.title || '',
-	});
-	await clearPendingCapture();
+	};
+
+	await Promise.all(scrollAccounts.map(function (account) {
+		return captureTabIfEligible(tab, account, pendingContext);
+	}));
 }
 
-async function captureTabIfEligible(tab, settings, pending) {
+async function captureTabIfEligible(tab, account, pending) {
 	if (!tab || !tab.id || !tab.url || !tab.active) {
 		return false;
 	}
@@ -291,7 +316,7 @@ async function captureTabIfEligible(tab, settings, pending) {
 		return false;
 	}
 
-	if (getAutoCaptureSkipReason(tab.url, settings.exclude_sites)) {
+	if (getAutoCaptureSkipReason(tab.url, account.auto_capture.exclude_sites)) {
 		return false;
 	}
 
@@ -299,17 +324,17 @@ async function captureTabIfEligible(tab, settings, pending) {
 		return false;
 	}
 
-	const accountSettings = await getAccountSettings(settings.account_id);
-	if (!accountSettings.urls_create_url || !accountSettings.access_token || !settings.project_id) {
+	const urlProjectId = account.url_project_id || account.project_id;
+	if (!account.urls_create_url || !account.access_token || !urlProjectId) {
 		return false;
 	}
 
 	try {
 		const screenshotDataUrl = await captureVisibleScreenshot(tab);
-		await postUrlToKumbukum(accountSettings, {
+		await postUrlToKumbukum(account, {
 			url: tab.url,
 			title: tab.title || (pending && pending.title) || '',
-			project_id: settings.project_id,
+			project_id: urlProjectId,
 			screenshot_data_url: screenshotDataUrl,
 		});
 		return true;
@@ -366,6 +391,6 @@ async function getTabFrameIds(tabId) {
 }
 
 async function clearPendingCapture() {
-	await browser.alarms.clear(AUTO_CAPTURE_ALARM_NAME);
+	await clearAllAutoCaptureAlarms();
 	await pendingStorage.remove(AUTO_CAPTURE_PENDING_KEY);
 }

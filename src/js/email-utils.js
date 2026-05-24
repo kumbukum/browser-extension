@@ -396,7 +396,7 @@ async function saveEmailToKumbukum(settings, candidate, tab) {
 
 	const basePayload = {
 		source: 'browser-extension',
-		project: settings.project_id,
+		project: settings.email_project_id || settings.project_id,
 		mailbox: 'inbox',
 	};
 

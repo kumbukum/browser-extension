@@ -60,7 +60,23 @@
           <select id="project-select" class="input">
             <option value="">-- Select a project --</option>
           </select>
-          <p class="help-text">URLs and notes will be saved to this project. By default, the first project will be automatically selected.</p>
+          <p class="help-text" id="project-select-count">Notes and anything not routed elsewhere are saved here.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="url-project-select">URL Project</label>
+          <select id="url-project-select" class="input">
+            <option value="">(use default project)</option>
+          </select>
+          <p class="help-text">Saved URLs (manual and automatic capture) are stored here. Leave on default to use the Default Project.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="email-project-select">Email Project</label>
+          <select id="email-project-select" class="input">
+            <option value="">(use default project)</option>
+          </select>
+          <p class="help-text">Saved emails are stored here. Leave on default to use the Default Project.</p>
         </div>
 
         <div class="subsection" id="mailbox-section" style="margin-top: 1.5rem;">
@@ -98,52 +114,38 @@
           <div class="help-text fs-7 mt-3">Your email credentials are securely encrypted and sent to Kumbukum and never stored in the extension.</div>
         </div>
 
+        <div class="subsection" id="auto-capture-section" style="margin-top: 1.5rem;">
+          <h3>Automatic URL Capture (optional)</h3>
+          <p class="help-text">When enabled, pages you visit are captured into this account's default project after a short delay. You can enable this on multiple accounts; URLs are saved into each enabled account that doesn't exclude them.</p>
+
+          <label class="checkbox-row" for="editor-auto-capture-enabled" style="margin-top: 1rem;">
+            <input type="checkbox" id="editor-auto-capture-enabled">
+            <span>Enable automatic URL capture for this account</span>
+          </label>
+
+          <p class="help-text" id="editor-auto-capture-project-readout">Capturing to project: —</p>
+
+          <div class="form-group">
+            <label for="editor-auto-capture-delay">Capture after seconds</label>
+            <input type="number" id="editor-auto-capture-delay" class="input" min="30" step="1" value="30">
+            <p class="help-text">Minimum is 30 seconds.</p>
+          </div>
+
+          <label class="checkbox-row" for="editor-auto-capture-scroll-enabled">
+            <input type="checkbox" id="editor-auto-capture-scroll-enabled">
+            <span>Also capture after scrolling 50% of the page</span>
+          </label>
+
+          <div class="form-group">
+            <label for="editor-auto-capture-exclude-sites">Exclude sites</label>
+            <textarea id="editor-auto-capture-exclude-sites" class="input textarea" rows="5" placeholder="example.com&#10;*.example.com&#10;docs.example.com/private"></textarea>
+            <p class="help-text">One domain or URL path per line. Use *.example.com to exclude the main domain and all subdomains. Email, search, AI, and private app sites are skipped by default.</p>
+          </div>
+        </div>
+
         <button id="btn-save" class="btn btn-primary" style="margin-top: 1rem;">Save Account</button>
         <div id="save-status" class="status" style="display:none;"></div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>Automatic URL Capture</h2>
-
-      <label class="checkbox-row" for="auto-capture-enabled">
-        <input type="checkbox" id="auto-capture-enabled">
-        <span>Enable automatic URL capture</span>
-      </label>
-
-      <div class="form-group">
-        <label for="auto-capture-account">Account</label>
-        <select id="auto-capture-account" class="input">
-          <option value="">-- Select account --</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="auto-capture-project">Project</label>
-        <select id="auto-capture-project" class="input">
-          <option value="">-- Select project --</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="auto-capture-delay">Capture after seconds</label>
-        <input type="number" id="auto-capture-delay" class="input" min="30" step="1" value="30">
-        <p class="help-text">Minimum is 30 seconds.</p>
-      </div>
-
-      <label class="checkbox-row" for="auto-capture-scroll-enabled">
-        <input type="checkbox" id="auto-capture-scroll-enabled">
-        <span>Also capture after scrolling 50% of the page</span>
-      </label>
-
-      <div class="form-group">
-        <label for="auto-capture-exclude-sites">Exclude sites</label>
-        <textarea id="auto-capture-exclude-sites" class="input textarea" rows="5" placeholder="example.com&#10;*.example.com&#10;docs.example.com/private"></textarea>
-        <p class="help-text">One domain or URL path per line. Use *.example.com to exclude the main domain and all subdomains. Email, search, AI, and private app sites are skipped by default.</p>
-      </div>
-
-      <button id="btn-save-autocapture" class="btn btn-primary">Save Autocapture Settings</button>
-      <div id="auto-capture-status" class="status" style="display:none;"></div>
     </div>
 
     <!-- About section -->

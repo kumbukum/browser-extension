@@ -2,7 +2,8 @@ import browser from 'webextension-polyfill';
 import {
 	getAccounts, getActiveAccountId, setActiveAccount,
 	addAccount, updateAccount, deleteAccount,
-	getAutoCaptureSettings, updateAutoCaptureSettings,
+	DEFAULT_ACCOUNT_AUTO_CAPTURE,
+	normalizeAccountAutoCapture,
 } from './storage.js';
 import {
 	normalizeAutoCaptureDelay,
@@ -17,14 +18,13 @@ let _mailboxConfigured = false;
 let _resolvedDefaultInstanceUrl = null;
 
 // DOM elements
-let accountNameInput, instanceUrlInput, accessTokenInput, projectSelect;
+let accountNameInput, instanceUrlInput, accessTokenInput, projectSelect, urlProjectSelect, emailProjectSelect, projectSelectCount;
 let mailboxProviderSelect, mailboxEmailInput, mailboxAppPasswordInput;
-let autoCaptureEnabledInput, autoCaptureScrollEnabledInput, autoCaptureAccountSelect, autoCaptureProjectSelect, autoCaptureDelayInput, autoCaptureExcludeSitesInput;
+let editorAutoCaptureEnabledInput, editorAutoCaptureScrollEnabledInput, editorAutoCaptureDelayInput, editorAutoCaptureExcludeSitesInput, editorAutoCaptureProjectReadout;
 let btnAddAccount, btnVerify, btnSave, btnCancelEdit;
-let btnSaveAutoCapture;
 let btnMailboxSetup, btnMailboxTest;
 let verifyStatus, saveStatus, projectSection, editorSection, editorTitle;
-let mailboxStatus, autoCaptureStatus;
+let mailboxStatus;
 let accountListEl, emptyState, versionSpan;
 
 document.addEventListener('DOMContentLoaded', init);
@@ -35,26 +35,26 @@ async function init() {
 	instanceUrlInput = document.getElementById('instance-url');
 	accessTokenInput = document.getElementById('access-token');
 	projectSelect = document.getElementById('project-select');
+	urlProjectSelect = document.getElementById('url-project-select');
+	emailProjectSelect = document.getElementById('email-project-select');
+	projectSelectCount = document.getElementById('project-select-count');
 	mailboxProviderSelect = document.getElementById('mailbox-provider');
 	mailboxEmailInput = document.getElementById('mailbox-email');
 	mailboxAppPasswordInput = document.getElementById('mailbox-app-password');
-	autoCaptureEnabledInput = document.getElementById('auto-capture-enabled');
-	autoCaptureScrollEnabledInput = document.getElementById('auto-capture-scroll-enabled');
-	autoCaptureAccountSelect = document.getElementById('auto-capture-account');
-	autoCaptureProjectSelect = document.getElementById('auto-capture-project');
-	autoCaptureDelayInput = document.getElementById('auto-capture-delay');
-	autoCaptureExcludeSitesInput = document.getElementById('auto-capture-exclude-sites');
+	editorAutoCaptureEnabledInput = document.getElementById('editor-auto-capture-enabled');
+	editorAutoCaptureScrollEnabledInput = document.getElementById('editor-auto-capture-scroll-enabled');
+	editorAutoCaptureDelayInput = document.getElementById('editor-auto-capture-delay');
+	editorAutoCaptureExcludeSitesInput = document.getElementById('editor-auto-capture-exclude-sites');
+	editorAutoCaptureProjectReadout = document.getElementById('editor-auto-capture-project-readout');
 	btnAddAccount = document.getElementById('btn-add-account');
 	btnVerify = document.getElementById('btn-verify');
 	btnSave = document.getElementById('btn-save');
 	btnCancelEdit = document.getElementById('btn-cancel-edit');
-	btnSaveAutoCapture = document.getElementById('btn-save-autocapture');
 	btnMailboxSetup = document.getElementById('btn-mailbox-setup');
 	btnMailboxTest = document.getElementById('btn-mailbox-test');
 	verifyStatus = document.getElementById('verify-status');
 	saveStatus = document.getElementById('save-status');
 	mailboxStatus = document.getElementById('mailbox-status');
-	autoCaptureStatus = document.getElementById('auto-capture-status');
 	projectSection = document.getElementById('project-section');
 	editorSection = document.getElementById('editor-section');
 	editorTitle = document.getElementById('editor-title');
@@ -73,16 +73,13 @@ async function init() {
 	btnMailboxTest.addEventListener('click', testMailboxConnector);
 	mailboxProviderSelect.addEventListener('change', markMailboxDirty);
 	mailboxEmailInput.addEventListener('input', markMailboxDirty);
-	autoCaptureAccountSelect.addEventListener('change', function () {
-		void loadAutoCaptureProjects(autoCaptureAccountSelect.value, '');
-	});
-	autoCaptureDelayInput.addEventListener('input', clampAutoCaptureDelay);
-	btnSaveAutoCapture.addEventListener('click', saveAutoCaptureSettings);
+	editorAutoCaptureDelayInput.addEventListener('input', clampEditorAutoCaptureDelay);
+	projectSelect.addEventListener('change', updateAutoCaptureProjectReadout);
+	urlProjectSelect.addEventListener('change', updateAutoCaptureProjectReadout);
 
 	void resolveDefaultInstanceUrl();
 
 	await renderAccountList();
-	await renderAutoCaptureSettings();
 }
 
 async function renderAccountList() {
@@ -135,10 +132,14 @@ async function openNewAccountEditor() {
 	instanceUrlInput.value = await resolveDefaultInstanceUrl();
 	accessTokenInput.value = '';
 	projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
+	urlProjectSelect.innerHTML = '<option value="">(use default project)</option>';
+	emailProjectSelect.innerHTML = '<option value="">(use default project)</option>';
 	mailboxProviderSelect.value = '';
 	mailboxEmailInput.value = '';
 	mailboxAppPasswordInput.value = '';
 	_mailboxConfigured = false;
+	applyAutoCaptureToEditor(DEFAULT_ACCOUNT_AUTO_CAPTURE);
+	updateAutoCaptureProjectReadout();
 	projectSection.style.display = 'none';
 	hideStatus(verifyStatus);
 	hideStatus(saveStatus);
@@ -154,17 +155,25 @@ function openEditAccountEditor(account) {
 	instanceUrlInput.value = account.instance_url || '';
 	accessTokenInput.value = account.access_token || '';
 	projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
+	urlProjectSelect.innerHTML = '<option value="">(use default project)</option>';
+	emailProjectSelect.innerHTML = '<option value="">(use default project)</option>';
 	mailboxProviderSelect.value = account.mailbox_provider || '';
 	mailboxEmailInput.value = account.mailbox_email || '';
 	mailboxAppPasswordInput.value = '';
 	_mailboxConfigured = Boolean(account.mailbox_configured);
+	applyAutoCaptureToEditor(normalizeAccountAutoCapture(account.auto_capture));
+	setAutoCaptureProjectReadout(account.project_name || '');
 	hideStatus(verifyStatus);
 	hideStatus(saveStatus);
 	hideStatus(mailboxStatus);
 
 	// If already has a valid connection, try to load projects
 	if (account.instance_url && account.access_token) {
-		loadProjects(account.instance_url, account.access_token, account.project_id);
+		loadProjects(account.instance_url, account.access_token, {
+			default_id: account.project_id,
+			url_id: account.url_project_id,
+			email_id: account.email_project_id,
+		});
 	} else {
 		projectSection.style.display = 'none';
 	}
@@ -220,7 +229,11 @@ async function verifyConnection() {
 
 		await response.json();
 		showStatus(verifyStatus, 'Connected successfully!', 'success');
-		await loadProjects(instanceUrl, accessToken, null);
+		await loadProjects(instanceUrl, accessToken, {
+			default_id: '',
+			url_id: '',
+			email_id: '',
+		});
 	} catch (err) {
 		showStatus(verifyStatus, 'Connection failed. Check your URL and token.', 'error');
 		projectSection.style.display = 'none';
@@ -229,7 +242,24 @@ async function verifyConnection() {
 	}
 }
 
-async function loadProjects(instanceUrl, accessToken, selectedProjectId) {
+function extractProjectsFromResponse(data) {
+	if (Array.isArray(data)) return data;
+	if (data && typeof data === 'object') {
+		if (Array.isArray(data.projects)) return data.projects;
+		if (Array.isArray(data.items)) return data.items;
+		if (Array.isArray(data.results)) return data.results;
+		if (data.projects && Array.isArray(data.projects.items)) return data.projects.items;
+		if (data.data && Array.isArray(data.data)) return data.data;
+	}
+	return [];
+}
+
+async function loadProjects(instanceUrl, accessToken, selections) {
+	const wanted = selections && typeof selections === 'object' ? selections : { default_id: selections };
+	const defaultId = wanted.default_id || '';
+	const urlId = wanted.url_id || '';
+	const emailId = wanted.email_id || '';
+
 	try {
 		const base = instanceUrl.replace(/\/+$/, '');
 		const response = await fetch(base + '/api/v1/projects', {
@@ -245,23 +275,43 @@ async function loadProjects(instanceUrl, accessToken, selectedProjectId) {
 		}
 
 		const data = await response.json();
-		const projects = data.projects || data || [];
+		const projects = extractProjectsFromResponse(data);
+
+		if (projects.length === 0) {
+			console.warn('[Kumbukum] /api/v1/projects returned no projects. Response:', data);
+		}
 
 		projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
+		urlProjectSelect.innerHTML = '<option value="">(use default project)</option>';
+		emailProjectSelect.innerHTML = '<option value="">(use default project)</option>';
+
 		projects.forEach(function (project) {
-			const opt = document.createElement('option');
-			opt.value = project._id;
-			opt.textContent = project.name;
-			if (selectedProjectId === project._id) {
-				opt.selected = true;
-			}
-			projectSelect.appendChild(opt);
+			const pid = project._id || project.id;
+			const pname = project.name || '(unnamed)';
+			appendProjectOption(projectSelect, pid, pname, defaultId === pid);
+			appendProjectOption(urlProjectSelect, pid, pname, urlId === pid);
+			appendProjectOption(emailProjectSelect, pid, pname, emailId === pid);
 		});
 
+		if (projectSelectCount) {
+			projectSelectCount.textContent = projects.length === 1
+				? '1 project loaded. Notes and anything not routed elsewhere are saved here.'
+				: projects.length + ' projects loaded. Notes and anything not routed elsewhere are saved here.';
+		}
+
 		projectSection.style.display = 'block';
+		updateAutoCaptureProjectReadout();
 	} catch (err) {
 		showStatus(verifyStatus, 'Connected, but failed to load projects.', 'error');
 	}
+}
+
+function appendProjectOption(selectEl, value, text, selected) {
+	const opt = document.createElement('option');
+	opt.value = value;
+	opt.textContent = text;
+	if (selected) opt.selected = true;
+	selectEl.appendChild(opt);
 }
 
 async function saveAccount() {
@@ -270,9 +320,14 @@ async function saveAccount() {
 	const accessToken = accessTokenInput.value.trim();
 	const projectId = projectSelect.value;
 	const projectName = projectSelect.options[projectSelect.selectedIndex]?.text || '';
+	const urlProjectId = urlProjectSelect.value;
+	const urlProjectName = urlProjectId ? (urlProjectSelect.options[urlProjectSelect.selectedIndex]?.text || '') : '';
+	const emailProjectId = emailProjectSelect.value;
+	const emailProjectName = emailProjectId ? (emailProjectSelect.options[emailProjectSelect.selectedIndex]?.text || '') : '';
 	const mailboxProvider = mailboxProviderSelect.value.trim();
 	const mailboxEmail = mailboxEmailInput.value.trim().toLowerCase();
 	const mailboxConfigured = Boolean(mailboxProvider && mailboxEmail && _mailboxConfigured);
+	const autoCapture = readAutoCaptureFromEditor();
 
 	if (!name) {
 		showStatus(saveStatus, 'Please enter an account name.', 'error');
@@ -286,155 +341,90 @@ async function saveAccount() {
 		showStatus(saveStatus, 'Please select a project.', 'error');
 		return;
 	}
+	if (autoCapture.enabled && !projectId) {
+		showStatus(saveStatus, 'Select a default project before enabling autocapture.', 'error');
+		return;
+	}
 
 	try {
 		if (_editingAccountId) {
-			// Update existing
 			await updateAccount(_editingAccountId, {
 				name, instance_url: instanceUrl, access_token: accessToken,
 				project_id: projectId, project_name: projectName,
+				url_project_id: urlProjectId, url_project_name: urlProjectName,
+				email_project_id: emailProjectId, email_project_name: emailProjectName,
 				mailbox_provider: mailboxProvider,
 				mailbox_email: mailboxEmail,
 				mailbox_configured: mailboxConfigured,
+				auto_capture: autoCapture,
 			});
 		} else {
-			// Create new
 			const account = await addAccount({ name, instance_url: instanceUrl, access_token: accessToken });
 			await updateAccount(account.id, {
 				project_id: projectId,
 				project_name: projectName,
+				url_project_id: urlProjectId, url_project_name: urlProjectName,
+				email_project_id: emailProjectId, email_project_name: emailProjectName,
 				mailbox_provider: mailboxProvider,
 				mailbox_email: mailboxEmail,
 				mailbox_configured: mailboxConfigured,
+				auto_capture: autoCapture,
 			});
 			_editingAccountId = account.id;
 		}
 
 		showStatus(saveStatus, 'Account saved!', 'success');
 		await renderAccountList();
-		await renderAutoCaptureSettings();
 	} catch (err) {
 		showStatus(saveStatus, 'Failed to save: ' + err.message, 'error');
 	}
 }
 
-async function renderAutoCaptureSettings() {
-	const accounts = await getAccounts();
-	const activeId = await getActiveAccountId();
-	const settings = await getAutoCaptureSettings();
-	const selectedAccountId = settings.account_id || activeId || (accounts[0] && accounts[0].id) || '';
+function applyAutoCaptureToEditor(autoCapture) {
+	const normalized = normalizeAccountAutoCapture(autoCapture);
+	editorAutoCaptureEnabledInput.checked = normalized.enabled;
+	editorAutoCaptureScrollEnabledInput.checked = normalized.scroll_capture_enabled;
+	editorAutoCaptureDelayInput.value = normalized.delay_seconds;
+	editorAutoCaptureExcludeSitesInput.value = normalized.exclude_sites.join('\n');
+}
 
-	autoCaptureAccountSelect.innerHTML = '<option value="">-- Select account --</option>';
-	accounts.forEach(function (account) {
-		const opt = document.createElement('option');
-		opt.value = account.id;
-		opt.textContent = account.name + (account.project_name ? ' - ' + account.project_name : '');
-		if (selectedAccountId === account.id) {
-			opt.selected = true;
-		}
-		autoCaptureAccountSelect.appendChild(opt);
+function readAutoCaptureFromEditor() {
+	return normalizeAccountAutoCapture({
+		enabled: editorAutoCaptureEnabledInput.checked,
+		delay_seconds: normalizeAutoCaptureDelay(editorAutoCaptureDelayInput.value),
+		scroll_capture_enabled: editorAutoCaptureScrollEnabledInput.checked,
+		exclude_sites: normalizeExcludeSites(editorAutoCaptureExcludeSitesInput.value),
 	});
-
-	autoCaptureEnabledInput.checked = Boolean(settings.enabled);
-	autoCaptureScrollEnabledInput.checked = Boolean(settings.scroll_capture_enabled);
-	autoCaptureDelayInput.value = normalizeAutoCaptureDelay(settings.delay_seconds);
-	autoCaptureExcludeSitesInput.value = settings.exclude_sites.join('\n');
-	autoCaptureAccountSelect.disabled = accounts.length === 0;
-	autoCaptureProjectSelect.disabled = accounts.length === 0;
-	btnSaveAutoCapture.disabled = accounts.length === 0;
-
-	if (accounts.length === 0) {
-		autoCaptureProjectSelect.innerHTML = '<option value="">-- Select project --</option>';
-		return;
-	}
-
-	await loadAutoCaptureProjects(selectedAccountId, settings.project_id);
 }
 
-async function loadAutoCaptureProjects(accountId, selectedProjectId) {
-	const accounts = await getAccounts();
-	const account = accounts.find(function (item) { return item.id === accountId; });
-	autoCaptureProjectSelect.innerHTML = '<option value="">-- Select project --</option>';
-
-	if (!account || !account.instance_url || !account.access_token) {
-		autoCaptureProjectSelect.disabled = true;
-		return;
-	}
-
-	autoCaptureProjectSelect.disabled = true;
-
-	try {
-		const base = account.instance_url.replace(/\/+$/, '');
-		const response = await fetch(base + '/api/v1/projects', {
-			method: 'GET',
-			headers: {
-				'Accept': 'application/json',
-				'Authorization': 'Token ' + account.access_token,
-			},
-		});
-
-		if (!response.ok) {
-			throw new Error('HTTP ' + response.status);
-		}
-
-		const data = await response.json();
-		const projects = data.projects || data || [];
-		const fallbackProjectId = selectedProjectId || account.project_id || '';
-
-		projects.forEach(function (project) {
-			const opt = document.createElement('option');
-			opt.value = project._id;
-			opt.textContent = project.name;
-			if (fallbackProjectId === project._id) {
-				opt.selected = true;
-			}
-			autoCaptureProjectSelect.appendChild(opt);
-		});
-	} catch (_err) {
-		showStatus(autoCaptureStatus, 'Failed to load autocapture projects.', 'error');
-	} finally {
-		autoCaptureProjectSelect.disabled = false;
-	}
-}
-
-async function saveAutoCaptureSettings() {
-	const delaySeconds = normalizeAutoCaptureDelay(autoCaptureDelayInput.value);
-	autoCaptureDelayInput.value = delaySeconds;
-
-	const enabled = autoCaptureEnabledInput.checked;
-	const accountId = autoCaptureAccountSelect.value;
-	const projectId = autoCaptureProjectSelect.value;
-	const projectName = autoCaptureProjectSelect.options[autoCaptureProjectSelect.selectedIndex]?.text || '';
-
-	if (enabled && (!accountId || !projectId)) {
-		showStatus(autoCaptureStatus, 'Select account and project before enabling autocapture.', 'error');
-		return;
-	}
-
-	try {
-		await updateAutoCaptureSettings({
-			enabled,
-			account_id: accountId,
-			project_id: projectId,
-			project_name: projectName,
-			delay_seconds: delaySeconds,
-			scroll_capture_enabled: autoCaptureScrollEnabledInput.checked,
-			exclude_sites: normalizeExcludeSites(autoCaptureExcludeSitesInput.value),
-		});
-		showStatus(autoCaptureStatus, 'Autocapture settings saved.', 'success');
-	} catch (err) {
-		showStatus(autoCaptureStatus, 'Failed to save autocapture: ' + err.message, 'error');
-	}
-}
-
-function clampAutoCaptureDelay() {
-	const currentValue = parseInt(autoCaptureDelayInput.value, 10);
+function clampEditorAutoCaptureDelay() {
+	const currentValue = parseInt(editorAutoCaptureDelayInput.value, 10);
 	if (Number.isNaN(currentValue)) {
 		return;
 	}
 	if (currentValue < 30) {
-		autoCaptureDelayInput.value = 30;
+		editorAutoCaptureDelayInput.value = 30;
 	}
+}
+
+function setAutoCaptureProjectReadout(projectName) {
+	if (!editorAutoCaptureProjectReadout) return;
+	const name = (projectName || '').trim();
+	editorAutoCaptureProjectReadout.textContent = name
+		? 'Capturing to URL project: ' + name
+		: 'Select a default (or URL) project above to enable autocapture.';
+}
+
+function updateAutoCaptureProjectReadout() {
+	const urlOpt = urlProjectSelect && urlProjectSelect.options[urlProjectSelect.selectedIndex];
+	const urlName = urlOpt && urlOpt.value ? urlOpt.text : '';
+	if (urlName) {
+		setAutoCaptureProjectReadout(urlName);
+		return;
+	}
+	const defaultOpt = projectSelect && projectSelect.options[projectSelect.selectedIndex];
+	const defaultName = defaultOpt && defaultOpt.value ? defaultOpt.text : '';
+	setAutoCaptureProjectReadout(defaultName);
 }
 
 function markMailboxDirty() {
