@@ -25,6 +25,7 @@ function getEntryPoints() {
 	return {
 		options: path.join(srcDir, 'js', 'options.js'),
 		popup: path.join(srcDir, 'js', 'popup.js'),
+		sidepanel: path.join(srcDir, 'js', 'sidepanel.js'),
 		email_extractor: path.join(srcDir, 'js', 'email-extractor.js'),
 		scroll_capture: path.join(srcDir, 'js', 'scroll-capture.js'),
 		page_bridge: path.join(srcDir, 'js', 'page-bridge.js'),

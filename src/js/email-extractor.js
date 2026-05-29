@@ -291,6 +291,7 @@ async function extractFastmailPageData() {
 		in_reply_to: normalizeMessageId(inReplyTo),
 		references: normalizeMessageIdList(payload.references),
 		text_content: (payload.bodyText || '').trim(),
+		html_content: (payload.bodyHtml || '').trim(),
 		mode: 'fastmail_page_state',
 	};
 }
@@ -320,6 +321,7 @@ async function extractOutlookPageData() {
 		in_reply_to: normalizeMessageId(inReplyTo),
 		references: normalizeMessageIdList(payload.references),
 		text_content: (payload.bodyText || '').trim(),
+		html_content: (payload.bodyHtml || '').trim(),
 		mode: 'outlook_page_state',
 	};
 }
@@ -938,6 +940,7 @@ function extractGmailHint(providerName) {
 		cc: dedupeEmails(ccCandidates),
 		bcc: [],
 		text_content: extractGmailBodyText(),
+		html_content: extractGmailBodyHtml(),
 		references: extractMessageIds(extractHeaderValueFromVisibleText('references')),
 		in_reply_to: extractMessageId(extractHeaderValueFromVisibleText('in-reply-to')),
 	};
@@ -957,6 +960,7 @@ function extractOutlookHint(providerName) {
 		bcc: extractOutlookAddressList('bcc').length > 0 ? extractOutlookAddressList('bcc') : extractEmails(extractEmailFromLabel('bcc') || textFromSelector(['[aria-label*="Bcc"]'])),
 		date: extractOutlookDate() || textFromSelector(['[aria-label*="Sent"]', '[aria-label*="Date"]']),
 		text_content: extractOutlookBodyText() || longestTextFromSelectors(['main [role="document"]', 'div[role="document"]', '[data-app-section="MailReadCompose"]']),
+		html_content: extractOutlookBodyHtml(),
 	};
 }
 
@@ -1081,6 +1085,15 @@ function extractOutlookBodyText() {
 	return best;
 }
 
+function extractOutlookBodyHtml() {
+	const root = getOutlookReadingPaneRoot();
+	if (!root) {
+		return '';
+	}
+
+	return longestHtmlFromNodeSelectors(root, ['[role="document"], article, [aria-label="Message body"]']);
+}
+
 function sanitizeOutlookBodyText(value) {
 	return normalizeWhitespace(String(value || '')
 		.replace(/^[\uE000-\uF8FF\s]+/, '')
@@ -1151,6 +1164,7 @@ function extractGenericEmailView() {
 		in_reply_to: extractMessageId(lineHeaders['in-reply-to'] || ''),
 		references: extractMessageIds(lineHeaders.references || ''),
 		text_content: body,
+		html_content: extractLikelyBodyHtml(),
 	};
 }
 
@@ -1182,6 +1196,7 @@ function mergeEmailData(base, fallback) {
 		in_reply_to: base.in_reply_to || fallback.in_reply_to || '',
 		references: dedupeValues([...(base.references || []), ...(fallback.references || [])]),
 		text_content: base.text_content || fallback.text_content || '',
+		html_content: base.html_content || fallback.html_content || '',
 		provider: base.provider || fallback.provider || 'unknown',
 		mode: base.mode || fallback.mode || '',
 	};
@@ -1722,6 +1737,35 @@ function extractLikelyBodyText() {
 	return best;
 }
 
+function extractLikelyBodyHtml() {
+	const hinted = longestHtmlFromSelectors([
+		'.a3s.aiL',
+		'.ii.gt',
+		'div[role="document"]',
+		'[data-test-id="Message-body"]',
+		'article',
+		'main',
+	]);
+	if (hinted) {
+		return hinted;
+	}
+
+	const blocks = Array.from(document.querySelectorAll('article, main, section, div, p'));
+	let best = '';
+	let bestTextLength = 0;
+
+	for (let i = 0; i < blocks.length; i += 1) {
+		const el = blocks[i];
+		if (!isVisible(el)) continue;
+		const text = (el.innerText || '').trim();
+		if (text.length < 120 || text.length <= bestTextLength) continue;
+		bestTextLength = text.length;
+		best = el.innerHTML || '';
+	}
+
+	return best;
+}
+
 function getBodyText() {
 	if (!document.body) return '';
 	return (document.body.innerText || '').trim();
@@ -1839,6 +1883,36 @@ function extractGmailBodyText() {
 	return best;
 }
 
+function extractGmailBodyHtml() {
+	const direct = longestHtmlFromSelectors([
+		'.adn .a3s.aiL',
+		'.adn .ii.gt',
+		'[data-message-id] .a3s.aiL',
+		'[data-legacy-message-id] .a3s.aiL',
+		'.a3s.aiL',
+		'.ii.gt',
+		'.a3s',
+	]);
+
+	let best = direct || '';
+	let bestTextLength = textFromHtml(best).length;
+	const containers = Array.from(document.querySelectorAll('.adn.ads, .adn, [data-message-id], [data-legacy-message-id], [role="listitem"]'));
+
+	for (let i = 0; i < containers.length; i += 1) {
+		const container = containers[i];
+		if (!isVisible(container)) continue;
+
+		const nested = longestHtmlFromNodeSelectors(container, ['.a3s.aiL', '.ii.gt', '.a3s', '[dir="ltr"]']);
+		const nestedTextLength = textFromHtml(nested).length;
+		if (nestedTextLength > bestTextLength) {
+			best = nested;
+			bestTextLength = nestedTextLength;
+		}
+	}
+
+	return best;
+}
+
 function extractGmailMessageId() {
 	const candidates = [
 		extractHeaderValueFromVisibleText('message-id'),
@@ -1874,6 +1948,36 @@ function longestTextFromNodeSelectors(node, selectors) {
 		}
 	}
 	return best;
+}
+
+function longestHtmlFromSelectors(selectors) {
+	return longestHtmlFromNodeSelectors(document, selectors);
+}
+
+function longestHtmlFromNodeSelectors(node, selectors) {
+	let best = '';
+	let bestTextLength = 0;
+	for (let i = 0; i < selectors.length; i += 1) {
+		const els = Array.from(node.querySelectorAll(selectors[i]));
+		for (let j = 0; j < els.length; j += 1) {
+			const el = els[j];
+			if (!isVisible(el)) continue;
+			const html = el.innerHTML || '';
+			const textLength = (el.innerText || el.textContent || textFromHtml(html) || '').trim().length;
+			if (html && textLength > bestTextLength) {
+				best = html;
+				bestTextLength = textLength;
+			}
+		}
+	}
+	return best;
+}
+
+function textFromHtml(html) {
+	if (!html) return '';
+	const template = document.createElement('template');
+	template.innerHTML = html;
+	return (template.content.textContent || '').trim();
 }
 
 function normalizeMessageId(value) {

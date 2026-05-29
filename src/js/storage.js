@@ -4,16 +4,16 @@ import browser from 'webextension-polyfill';
 const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
 const LOCAL_DEV_INSTANCE_URL = 'http://localhost:3000';
 const MIN_AUTO_CAPTURE_SECONDS = 30;
+const LEGACY_AUTO_CAPTURE_KEY = 'auto_capture_settings';
 
-const DEFAULT_AUTO_CAPTURE_SETTINGS = {
+const DEFAULT_ACCOUNT_AUTO_CAPTURE = {
 	enabled: false,
-	account_id: '',
-	project_id: '',
-	project_name: '',
 	delay_seconds: MIN_AUTO_CAPTURE_SECONDS,
 	scroll_capture_enabled: false,
 	exclude_sites: [],
 };
+
+let _legacyMigrationDone = false;
 
 // --- Internal helpers ---
 
@@ -56,22 +56,6 @@ function computeApiUrls(obj) {
 	return obj;
 }
 
-function normalizeAutoCaptureSettings(settings) {
-	const raw = settings && typeof settings === 'object' ? settings : {};
-	const delaySeconds = Math.max(MIN_AUTO_CAPTURE_SECONDS, parseInt(raw.delay_seconds, 10) || MIN_AUTO_CAPTURE_SECONDS);
-	return {
-		...DEFAULT_AUTO_CAPTURE_SETTINGS,
-		...raw,
-		enabled: Boolean(raw.enabled),
-		account_id: raw.account_id || '',
-		project_id: raw.project_id || '',
-		project_name: raw.project_name || '',
-		delay_seconds: delaySeconds,
-		scroll_capture_enabled: Boolean(raw.scroll_capture_enabled),
-		exclude_sites: normalizeStringList(raw.exclude_sites),
-	};
-}
-
 function normalizeStringList(value) {
 	const values = Array.isArray(value) ? value : [];
 	return Array.from(new Set(values.map(function (item) {
@@ -79,11 +63,72 @@ function normalizeStringList(value) {
 	}).filter(Boolean)));
 }
 
+function normalizeAccountAutoCapture(raw) {
+	const source = raw && typeof raw === 'object' ? raw : {};
+	const delaySeconds = Math.max(
+		MIN_AUTO_CAPTURE_SECONDS,
+		parseInt(source.delay_seconds, 10) || MIN_AUTO_CAPTURE_SECONDS,
+	);
+	return {
+		enabled: Boolean(source.enabled),
+		delay_seconds: delaySeconds,
+		scroll_capture_enabled: Boolean(source.scroll_capture_enabled),
+		exclude_sites: normalizeStringList(source.exclude_sites),
+	};
+}
+
+function withNormalizedAutoCapture(account) {
+	return {
+		...account,
+		auto_capture: normalizeAccountAutoCapture(account && account.auto_capture),
+	};
+}
+
+async function _migrateLegacyAutoCaptureOnce() {
+	if (_legacyMigrationDone) return;
+	_legacyMigrationDone = true;
+
+	let local;
+	try {
+		local = await browser.storage.local.get([LEGACY_AUTO_CAPTURE_KEY]);
+	} catch (_err) {
+		return;
+	}
+	const legacy = local && local[LEGACY_AUTO_CAPTURE_KEY];
+	if (!legacy || typeof legacy !== 'object') return;
+
+	const { accounts } = await _read();
+	const targetIdx = legacy.account_id
+		? accounts.findIndex(function (a) { return a.id === legacy.account_id; })
+		: -1;
+
+	if (targetIdx !== -1) {
+		const current = accounts[targetIdx].auto_capture;
+		const currentEnabled = Boolean(current && current.enabled);
+		if (!currentEnabled) {
+			accounts[targetIdx].auto_capture = normalizeAccountAutoCapture({
+				enabled: legacy.enabled,
+				delay_seconds: legacy.delay_seconds,
+				scroll_capture_enabled: legacy.scroll_capture_enabled,
+				exclude_sites: legacy.exclude_sites,
+			});
+			await _write({ accounts });
+		}
+	}
+
+	try {
+		await browser.storage.local.remove(LEGACY_AUTO_CAPTURE_KEY);
+	} catch (_err) {
+		// Best-effort cleanup; missing key is fine.
+	}
+}
+
 // --- Public API ---
 
 async function getAccounts() {
+	await _migrateLegacyAutoCaptureOnce();
 	const { accounts } = await _read();
-	return accounts;
+	return accounts.map(withNormalizedAutoCapture);
 }
 
 async function getActiveAccountId() {
@@ -92,8 +137,10 @@ async function getActiveAccountId() {
 }
 
 async function getActiveAccount() {
+	await _migrateLegacyAutoCaptureOnce();
 	const { accounts, active_account_id } = await _read();
-	return accounts.find(function (a) { return a.id === active_account_id; }) || null;
+	const found = accounts.find(function (a) { return a.id === active_account_id; });
+	return found ? withNormalizedAutoCapture(found) : null;
 }
 
 async function setActiveAccount(id) {
@@ -109,12 +156,16 @@ async function addAccount({ name, instance_url, access_token }) {
 		access_token: access_token || '',
 		project_id: '',
 		project_name: '',
+		email_project_id: '',
+		email_project_name: '',
+		url_project_id: '',
+		url_project_name: '',
 		mailbox_provider: '',
 		mailbox_email: '',
 		mailbox_configured: false,
+		auto_capture: { ...DEFAULT_ACCOUNT_AUTO_CAPTURE },
 	};
 	accounts.push(account);
-	// If this is the first account, make it active
 	const update = { accounts };
 	if (accounts.length === 1) {
 		update.active_account_id = account.id;
@@ -127,10 +178,14 @@ async function updateAccount(id, fields) {
 	const { accounts } = await _read();
 	const idx = accounts.findIndex(function (a) { return a.id === id; });
 	if (idx === -1) throw new Error('Account not found');
-	if (fields.instance_url) {
-		fields.instance_url = fields.instance_url.replace(/\/+$/, '');
+	const next = { ...fields };
+	if (next.instance_url) {
+		next.instance_url = next.instance_url.replace(/\/+$/, '');
 	}
-	Object.assign(accounts[idx], fields);
+	if (Object.prototype.hasOwnProperty.call(next, 'auto_capture')) {
+		next.auto_capture = normalizeAccountAutoCapture(next.auto_capture);
+	}
+	Object.assign(accounts[idx], next);
 	await _write({ accounts });
 	return accounts[idx];
 }
@@ -138,7 +193,6 @@ async function updateAccount(id, fields) {
 async function deleteAccount(id) {
 	const data = await _read();
 	data.accounts = data.accounts.filter(function (a) { return a.id !== id; });
-	// If we deleted the active account, switch to the first remaining one
 	if (data.active_account_id === id) {
 		data.active_account_id = data.accounts.length > 0 ? data.accounts[0].id : null;
 	}
@@ -156,28 +210,34 @@ async function getAllSettings() {
 }
 
 async function getAccountSettings(accountId) {
+	await _migrateLegacyAutoCaptureOnce();
 	const { accounts } = await _read();
 	const account = accounts.find(function (a) { return a.id === accountId; });
 	if (!account) return {};
-	return computeApiUrls({ ...account });
+	return computeApiUrls({ ...withNormalizedAutoCapture(account) });
 }
 
-async function getAutoCaptureSettings() {
-	const data = await browser.storage.local.get(['auto_capture_settings']);
-	return normalizeAutoCaptureSettings(data.auto_capture_settings);
-}
-
-async function updateAutoCaptureSettings(fields) {
-	const current = await getAutoCaptureSettings();
-	const next = normalizeAutoCaptureSettings({
-		...current,
-		...(fields || {}),
-	});
-	await browser.storage.local.set({ auto_capture_settings: next });
-	return next;
+/**
+ * Returns every account with auto_capture.enabled, project_id, access_token
+ * set, each enriched with computed API URLs. Performs the one-shot legacy
+ * migration on first call.
+ */
+async function getEnabledAutoCaptureAccounts() {
+	await _migrateLegacyAutoCaptureOnce();
+	const { accounts } = await _read();
+	return accounts
+		.map(withNormalizedAutoCapture)
+		.filter(function (account) {
+			return account.auto_capture.enabled
+				&& account.project_id
+				&& account.access_token
+				&& account.instance_url;
+		})
+		.map(function (account) { return computeApiUrls({ ...account }); });
 }
 
 export {
+	DEFAULT_ACCOUNT_AUTO_CAPTURE,
 	getAccounts,
 	getActiveAccountId,
 	getActiveAccount,
@@ -187,6 +247,6 @@ export {
 	updateAccount,
 	deleteAccount,
 	getAllSettings,
-	getAutoCaptureSettings,
-	updateAutoCaptureSettings,
+	getEnabledAutoCaptureAccounts,
+	normalizeAccountAutoCapture,
 };

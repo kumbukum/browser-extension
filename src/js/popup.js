@@ -8,6 +8,9 @@ import {
 import {
 	postUrlToKumbukum,
 } from './url-capture.js';
+import {
+	saveEmailToKumbukum,
+} from './email-utils.js';
 import EasyMDE from 'easymde';
 import { marked } from 'marked';
 import 'easymde/dist/easymde.min.css';
@@ -187,7 +190,7 @@ async function apiSaveUrl() {
 	return postUrlToKumbukum(_settings, {
 		url: _currentTab.url,
 		title: _currentTab.title || '',
-		project_id: _settings.project_id,
+		project_id: _settings.url_project_id || _settings.project_id,
 	});
 }
 
@@ -306,7 +309,7 @@ async function apiSaveEmail(candidate) {
 
 	const basePayload = {
 		source: 'browser-extension',
-		project: _settings.project_id,
+		project: _settings.email_project_id || _settings.project_id,
 	};
 
 	const structuredPayload = {
@@ -429,7 +432,7 @@ async function saveEmail() {
 			throw new Error('No email found on this page.');
 		}
 		showStatus(statusEl, 'Adding email...', 'info');
-		await apiSaveEmail(candidate);
+		await saveEmailToKumbukum(_settings, candidate, _currentTab);
 		showStatus(statusEl, 'Email added!', 'success');
 	} catch (err) {
 		showStatus(statusEl, 'Failed: ' + err.message, 'error');
