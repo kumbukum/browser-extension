@@ -2,6 +2,7 @@ import browser from 'webextension-polyfill';
 import { Readability } from '@mozilla/readability';
 
 const EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
+const EMAIL_APP_CONTEXT_ACTION = 'kumbukum.detectEmailAppContext';
 const PAGE_REQUEST_EVENT = 'kumbukum:page-request';
 const PAGE_BRIDGE_STATUS_ATTRIBUTE = 'data-kumbukum-page-bridge';
 const OUTLOOK_MESSAGE_SOURCE_CACHE = new Map();
@@ -17,7 +18,15 @@ const RAW_SOURCE_SIGNAL_HEADERS = [
 ];
 
 browser.runtime.onMessage.addListener(function (message) {
-	if (!message || message.action !== EXTRACT_ACTION) {
+	if (!message) {
+		return undefined;
+	}
+
+	if (message.action === EMAIL_APP_CONTEXT_ACTION) {
+		return Promise.resolve(detectEmailAppContext());
+	}
+
+	if (message.action !== EXTRACT_ACTION) {
 		return undefined;
 	}
 
@@ -869,9 +878,49 @@ function normalizeWhitespace(value) {
 	return (value || '').replace(/\s+/g, ' ').trim();
 }
 
+function detectEmailAppContext() {
+	const app = normalizeMetaToken(getMetaContent('kumbukum:app'));
+	const capabilities = parseMetaCapabilities(getMetaContent('kumbukum:capabilities'));
+	const vendor = normalizeMetaToken(getMetaContent('kumbukum:vendor'));
+	const isEmailApp = app === 'email' || capabilities.indexOf('email') !== -1;
+
+	return {
+		is_email_app: isEmailApp,
+		app,
+		capabilities,
+		vendor,
+	};
+}
+
+function getMetaContent(name) {
+	const normalizedName = normalizeMetaToken(name);
+	const metas = Array.from(document.querySelectorAll('meta[name]'));
+
+	for (let i = 0; i < metas.length; i += 1) {
+		const metaName = normalizeMetaToken(metas[i].getAttribute('name'));
+		if (metaName === normalizedName) {
+			return metas[i].getAttribute('content') || '';
+		}
+	}
+
+	return '';
+}
+
+function parseMetaCapabilities(value) {
+	return dedupeValues(String(value || '')
+		.split(/[,\s]+/)
+		.map(normalizeMetaToken)
+		.filter(Boolean));
+}
+
+function normalizeMetaToken(value) {
+	return String(value || '').trim().toLowerCase();
+}
+
 function extractProviderHint() {
 	const host = window.location.hostname.toLowerCase();
 	const referrerHost = getReferrerHost();
+	const appContext = detectEmailAppContext();
 	if (host.includes('mail.google.com')) {
 		return extractGmailHint();
 	}
@@ -889,6 +938,9 @@ function extractProviderHint() {
 	}
 	if (referrerHost.includes('app.fastmail.com') || referrerHost.includes('fastmail.com')) {
 		return extractFastmailHint('fastmail');
+	}
+	if (appContext.is_email_app && appContext.vendor === 'helpmonks') {
+		return extractHelpmonksHint('helpmonks');
 	}
 	return {
 		provider: 'unknown',
@@ -1111,6 +1163,247 @@ function extractFastmailHint(providerName) {
 		date: extractDefinitionListValue(['date']) || extractEmailFromLabel('date') || textFromSelector(['time', '.v-MessageCard-time']),
 		text_content: longestTextFromSelectors(['[data-test-id="Message-body"]', '.v-Message-body', '.v-Message .v-Message-body', '.u-article', 'article']),
 	};
+}
+
+function extractHelpmonksHint(providerName) {
+	const docs = getHelpmonksDocuments();
+	const messageNode = findHelpmonksMessageNode(docs);
+	const conversationId = firstHelpmonksValue(docs, [
+		'#message_id',
+		'#mail_id',
+	]);
+	const bodyText = extractHelpmonksBodyText(docs);
+	const bodyHtml = extractHelpmonksBodyHtml(docs);
+	const fromText = extractHelpmonksFromText(messageNode, docs);
+	const toText = extractHelpmonksAddressLine(messageNode, 'to');
+	const ccText = extractHelpmonksAddressLine(messageNode, 'cc');
+	const bccText = extractHelpmonksAddressLine(messageNode, 'bcc');
+	const messageId = conversationId ? '<helpmonks-' + conversationId + '@app.helpmonks.com>' : '';
+
+	return {
+		provider: providerName || 'helpmonks',
+		subject: firstHelpmonksText(docs, [
+			'[id^="edit_mail_subject_header_"]',
+		]) || firstHelpmonksValue(docs, [
+			'#mail_subject',
+		]),
+		from: firstEmail(fromText) || fromText,
+		to: extractEmails(toText),
+		cc: extractEmails(ccText),
+		bcc: extractEmails(bccText),
+		date: extractHelpmonksDateText(messageNode),
+		message_id: messageId,
+		text_content: bodyText,
+		html_content: bodyHtml,
+		mode: 'helpmonks_dom',
+	};
+}
+
+function getHelpmonksDocuments() {
+	const docs = [];
+
+	function addDoc(doc) {
+		if (doc && docs.indexOf(doc) === -1) {
+			docs.push(doc);
+		}
+	}
+
+	addDoc(document);
+
+	try {
+		addDoc(window.top && window.top.document);
+	} catch (_err) {}
+
+	try {
+		addDoc(window.parent && window.parent.document);
+	} catch (_err) {}
+
+	for (let i = 0; i < docs.length; i += 1) {
+		const frames = Array.from(docs[i].querySelectorAll('iframe.message-body, iframe[id^="mail_message_detail_frame_"]'));
+		for (let j = 0; j < frames.length; j += 1) {
+			try {
+				addDoc(frames[j].contentDocument);
+			} catch (_err) {}
+		}
+	}
+
+	return docs;
+}
+
+function findHelpmonksMessageNode(docs) {
+	let best = null;
+	let bestScore = -1;
+
+	for (let i = 0; i < docs.length; i += 1) {
+		const nodes = Array.from(docs[i].querySelectorAll('.mail_message_item'));
+		for (let j = 0; j < nodes.length; j += 1) {
+			const node = nodes[j];
+			if (!isElementVisibleInOwnDocument(node)) continue;
+			const text = normalizeWhitespace(node.innerText || node.textContent || '');
+			const score = text.length + j;
+			if (score > bestScore) {
+				best = node;
+				bestScore = score;
+			}
+		}
+	}
+
+	return best;
+}
+
+function firstHelpmonksText(docs, selectors) {
+	for (let i = 0; i < docs.length; i += 1) {
+		for (let j = 0; j < selectors.length; j += 1) {
+			const el = docs[i].querySelector(selectors[j]);
+			if (!el || !isElementVisibleInOwnDocument(el)) continue;
+			const text = normalizeWhitespace(el.innerText || el.textContent || '');
+			if (text) {
+				return text;
+			}
+		}
+	}
+
+	return '';
+}
+
+function firstHelpmonksValue(docs, selectors) {
+	for (let i = 0; i < docs.length; i += 1) {
+		for (let j = 0; j < selectors.length; j += 1) {
+			const el = docs[i].querySelector(selectors[j]);
+			if (!el) continue;
+			const value = normalizeWhitespace(el.value || el.getAttribute('value') || '');
+			if (value) {
+				return value;
+			}
+		}
+	}
+
+	return '';
+}
+
+function extractHelpmonksFromText(messageNode, docs) {
+	if (messageNode) {
+		const title = messageNode.querySelector('.card-title');
+		if (title) {
+			const email = firstEmail(title.innerText || title.textContent || '');
+			if (email) {
+				return email;
+			}
+		}
+	}
+
+	const sidebarEmail = firstHelpmonksText(docs, [
+		'#mail_message_sidebar_contact .user-select-all',
+	]);
+	const sidebarParsed = parseHelpmonksJsonValue(firstHelpmonksValue(docs, [
+		'#message_emailchain_most_recent_cu',
+	]));
+	if (sidebarParsed && sidebarParsed.email) {
+		return sidebarParsed.email;
+	}
+
+	return firstEmail(sidebarEmail) || sidebarEmail;
+}
+
+function extractHelpmonksAddressLine(messageNode, label) {
+	if (!messageNode) {
+		return '';
+	}
+
+	const rows = Array.from(messageNode.querySelectorAll('.card-title .text-muted, .card-title [class*="text-muted"]'));
+	const prefix = new RegExp('^' + label + '\\s*:', 'i');
+
+	for (let i = 0; i < rows.length; i += 1) {
+		const text = normalizeWhitespace(rows[i].innerText || rows[i].textContent || '');
+		if (prefix.test(text)) {
+			return text.replace(prefix, '').trim();
+		}
+	}
+
+	return '';
+}
+
+function extractHelpmonksDateText(messageNode) {
+	if (!messageNode) {
+		return '';
+	}
+
+	const candidates = Array.from(messageNode.querySelectorAll('.card-toolbar .text-muted, .card-toolbar [class*="text-muted"]'));
+	for (let i = 0; i < candidates.length; i += 1) {
+		const text = normalizeWhitespace(candidates[i].innerText || candidates[i].textContent || '');
+		if (looksLikeHelpmonksDateText(text)) {
+			return text;
+		}
+	}
+
+	return '';
+}
+
+function extractHelpmonksBodyText(docs) {
+	let best = '';
+
+	for (let i = 0; i < docs.length; i += 1) {
+		const nodes = Array.from(docs[i].querySelectorAll('.hm_message_frame_content, .mail_message_detail_inner, .message-wrapper'));
+		for (let j = 0; j < nodes.length; j += 1) {
+			const node = nodes[j];
+			if (!isElementVisibleInOwnDocument(node)) continue;
+			const text = normalizePossiblyMisdecodedUtf8((node.innerText || node.textContent || '').trim());
+			if (text.length > best.length) {
+				best = text;
+			}
+		}
+	}
+
+	return best;
+}
+
+function extractHelpmonksBodyHtml(docs) {
+	let best = '';
+	let bestLength = 0;
+
+	for (let i = 0; i < docs.length; i += 1) {
+		const nodes = Array.from(docs[i].querySelectorAll('.hm_message_frame_content, .mail_message_detail_inner'));
+		for (let j = 0; j < nodes.length; j += 1) {
+			const node = nodes[j];
+			if (!isElementVisibleInOwnDocument(node)) continue;
+			const text = node.innerText || node.textContent || '';
+			if (text.length > bestLength) {
+				bestLength = text.length;
+				best = node.innerHTML || '';
+			}
+		}
+	}
+
+	return best;
+}
+
+function parseHelpmonksJsonValue(value) {
+	try {
+		const text = String(value || '').trim();
+		return text ? JSON.parse(text) : null;
+	} catch (_err) {
+		return null;
+	}
+}
+
+function looksLikeHelpmonksDateText(value) {
+	const text = value || '';
+	return /\b(mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i.test(text)
+		|| /\b\d{1,2}:\d{2}\b/.test(text)
+		|| /\b\d{4}\b/.test(text);
+}
+
+function isElementVisibleInOwnDocument(el) {
+	if (!el) return false;
+	const view = el.ownerDocument && el.ownerDocument.defaultView ? el.ownerDocument.defaultView : window;
+	const style = view.getComputedStyle(el);
+	if (!style) return false;
+	if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+	const rect = el.getBoundingClientRect();
+	if (rect.width > 0 && rect.height > 0) return true;
+	if (el.getClientRects && el.getClientRects().length > 0) return true;
+	if (el.offsetWidth > 0 || el.offsetHeight > 0) return true;
+	return false;
 }
 
 function extractDefinitionListValue(labels) {
