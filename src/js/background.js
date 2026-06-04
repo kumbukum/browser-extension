@@ -22,6 +22,7 @@ function accountIdFromAlarm(name) {
 	return name.slice(AUTO_CAPTURE_ALARM_PREFIX.length);
 }
 const EMAIL_EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
+const EMAIL_APP_CONTEXT_ACTION = 'kumbukum.detectEmailAppContext';
 const SCROLL_CAPTURE_ACTION = 'kumbukum.autoCaptureScrollDepth';
 const SIDEPANEL_PATH = 'sidepanel.html';
 const POPUP_PATH = 'popup.html';
@@ -94,6 +95,10 @@ browser.runtime.onMessage.addListener(function (message, sender) {
 	}
 });
 
+browser.action.onClicked.addListener(function (tab) {
+	void handleActionClickFallback(tab);
+});
+
 async function initializeSidePanelBehavior() {
 	const sidePanelApi = getChromeSidePanelApi();
 	if (!sidePanelApi || !sidePanelApi.setPanelBehavior) {
@@ -131,15 +136,17 @@ async function updateSidePanelForTabId(tabId) {
 
 async function updateSidePanelForTab(tab) {
 	if (!tab || !tab.id) {
-		return;
+		return false;
 	}
 
 	const sidePanelApi = getChromeSidePanelApi();
 	if (!sidePanelApi || !sidePanelApi.setOptions) {
-		return;
+		return false;
 	}
 
-	const emailEligible = isEmailAppUrl(tab.url) || await isEmailPage(tab.id).catch(function () {
+	const emailEligible = isEmailAppUrl(tab.url) || await isEmailAppPage(tab.id).catch(function () {
+		return false;
+	}) || await isEmailPage(tab.id).catch(function () {
 		return false;
 	});
 
@@ -154,7 +161,7 @@ async function updateSidePanelForTab(tab) {
 			await browser.action.setBadgeText({ tabId: tab.id, text: EMAIL_ACTION_BADGE });
 			await browser.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#2d9c6f' });
 			await browser.action.setTitle({ tabId: tab.id, title: 'Open Kumbukum email helper' });
-			return;
+			return true;
 		}
 
 		await sidePanelApi.setOptions({
@@ -164,8 +171,33 @@ async function updateSidePanelForTab(tab) {
 		await browser.action.setPopup({ tabId: tab.id, popup: POPUP_PATH });
 		await browser.action.setBadgeText({ tabId: tab.id, text: '' });
 		await browser.action.setTitle({ tabId: tab.id, title: 'Kumbukum' });
+		return false;
 	} catch (_err) {
 		// Keep the default popup usable if tab-specific sidepanel setup fails.
+		await browser.action.setPopup({ tabId: tab.id, popup: POPUP_PATH }).catch(function () {});
+		return false;
+	}
+}
+
+async function handleActionClickFallback(tab) {
+	if (!tab || !tab.id) {
+		return;
+	}
+
+	const sidePanelApi = getChromeSidePanelApi();
+	if (!sidePanelApi || !sidePanelApi.open) {
+		await browser.action.setPopup({ tabId: tab.id, popup: POPUP_PATH }).catch(function () {});
+		return;
+	}
+
+	try {
+		const emailEligible = await updateSidePanelForTab(tab);
+		if (!emailEligible) {
+			await browser.action.setPopup({ tabId: tab.id, popup: POPUP_PATH }).catch(function () {});
+			return;
+		}
+		await sidePanelApi.open({ tabId: tab.id });
+	} catch (_err) {
 		await browser.action.setPopup({ tabId: tab.id, popup: POPUP_PATH }).catch(function () {});
 	}
 }
@@ -361,6 +393,24 @@ async function isEmailPage(tabId) {
 				options: {},
 			}, { frameId });
 			if (response && response.is_email) {
+				return true;
+			}
+		} catch (_err) {
+			// Some frames cannot be inspected.
+		}
+	}
+	return false;
+}
+
+async function isEmailAppPage(tabId) {
+	const frameIds = await getTabFrameIds(tabId);
+	for (const frameId of frameIds) {
+		try {
+			const response = await browser.tabs.sendMessage(tabId, {
+				action: EMAIL_APP_CONTEXT_ACTION,
+				options: {},
+			}, { frameId });
+			if (response && response.is_email_app) {
 				return true;
 			}
 		} catch (_err) {
