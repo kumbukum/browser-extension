@@ -540,26 +540,26 @@ async function detectEmailCandidate(options) {
 	try {
 		const candidates = await collectEmailCandidatesFromTab(_currentTab.id, options || {});
 		if (candidates.length === 0) {
-			renderEmailUnavailableState('Couldn’t detect an email here. If parsing is not working, you may want to add connector settings.', true);
+			renderEmailUnavailableState('Couldn’t detect an email here. Open an email message and try again.', true);
 			return;
 		}
 
 		const mergedCandidate = mergeEmailCandidates(candidates);
 		if (!mergedCandidate) {
-			renderEmailUnavailableState('Couldn’t detect an email here. If parsing is not working, you may want to add connector settings.', true);
+			renderEmailUnavailableState('Couldn’t detect an email here. Open an email message and try again.', true);
 			return;
 		}
 
 		const normalizedCandidate = normalizeEmailCandidate(mergedCandidate);
 		if (!isSaveableEmailCandidate(normalizedCandidate)) {
-			renderEmailUnavailableState('We found email metadata, but the mail body is still missing. If parsing is not working, you may want to add connector settings.', true);
+			renderEmailUnavailableState('We found email metadata, but the mail body is still missing.', true);
 			return;
 		}
 
 		_emailCandidate = normalizedCandidate;
 		renderEmailPreview(_emailCandidate);
 	} catch (_err) {
-		renderEmailUnavailableState('Couldn’t inspect this page for email content. If parsing is not working, you may want to add connector settings.', true);
+		renderEmailUnavailableState('Couldn’t inspect this page for email content.', true);
 	}
 }
 
@@ -860,7 +860,6 @@ function formatMode(mode) {
 function formatEmailMeta(candidate) {
 	const parts = [formatMode(candidate.mode), `${candidate.confidence} confidence`];
 	if (candidate.partial) {
-		parts.push('connector may help if details look off');
 	}
 	return parts.join(' · ');
 }

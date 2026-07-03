@@ -49,10 +49,6 @@ function computeApiUrls(obj) {
 	obj.notes_create_url = `${base}/api/v1/notes`;
 	obj.links_create_url = `${base}/api/v1/links`;
 	obj.emails_create_url = `${base}/api/v1/emails`;
-	obj.mailbox_setup_url = `${base}/api/v1/mailbox/setup-credentials`;
-	obj.mailbox_test_url = `${base}/api/v1/mailbox/test-connection`;
-	obj.mailbox_sync_url = `${base}/api/v1/mailbox/sync`;
-	obj.mailbox_status_url = `${base}/api/v1/mailbox/status`;
 	return obj;
 }
 
@@ -160,9 +156,6 @@ async function addAccount({ name, instance_url, access_token }) {
 		email_project_name: '',
 		url_project_id: '',
 		url_project_name: '',
-		mailbox_provider: '',
-		mailbox_email: '',
-		mailbox_configured: false,
 		auto_capture: { ...DEFAULT_ACCOUNT_AUTO_CAPTURE },
 	};
 	accounts.push(account);

@@ -14,17 +14,13 @@ const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
 const LOCAL_INSTANCE_URL = 'http://localhost:3000';
 
 let _editingAccountId = null; // null = adding new, string = editing existing
-let _mailboxConfigured = false;
 let _resolvedDefaultInstanceUrl = null;
 
 // DOM elements
 let accountNameInput, instanceUrlInput, accessTokenInput, projectSelect, urlProjectSelect, emailProjectSelect, projectSelectCount;
-let mailboxProviderSelect, mailboxEmailInput, mailboxAppPasswordInput;
 let editorAutoCaptureEnabledInput, editorAutoCaptureScrollEnabledInput, editorAutoCaptureDelayInput, editorAutoCaptureExcludeSitesInput, editorAutoCaptureProjectReadout;
 let btnAddAccount, btnVerify, btnSave, btnCancelEdit;
-let btnMailboxSetup, btnMailboxTest;
 let verifyStatus, saveStatus, projectSection, editorSection, editorTitle;
-let mailboxStatus;
 let accountListEl, emptyState, versionSpan;
 
 document.addEventListener('DOMContentLoaded', init);
@@ -38,9 +34,6 @@ async function init() {
 	urlProjectSelect = document.getElementById('url-project-select');
 	emailProjectSelect = document.getElementById('email-project-select');
 	projectSelectCount = document.getElementById('project-select-count');
-	mailboxProviderSelect = document.getElementById('mailbox-provider');
-	mailboxEmailInput = document.getElementById('mailbox-email');
-	mailboxAppPasswordInput = document.getElementById('mailbox-app-password');
 	editorAutoCaptureEnabledInput = document.getElementById('editor-auto-capture-enabled');
 	editorAutoCaptureScrollEnabledInput = document.getElementById('editor-auto-capture-scroll-enabled');
 	editorAutoCaptureDelayInput = document.getElementById('editor-auto-capture-delay');
@@ -50,11 +43,8 @@ async function init() {
 	btnVerify = document.getElementById('btn-verify');
 	btnSave = document.getElementById('btn-save');
 	btnCancelEdit = document.getElementById('btn-cancel-edit');
-	btnMailboxSetup = document.getElementById('btn-mailbox-setup');
-	btnMailboxTest = document.getElementById('btn-mailbox-test');
 	verifyStatus = document.getElementById('verify-status');
 	saveStatus = document.getElementById('save-status');
-	mailboxStatus = document.getElementById('mailbox-status');
 	projectSection = document.getElementById('project-section');
 	editorSection = document.getElementById('editor-section');
 	editorTitle = document.getElementById('editor-title');
@@ -69,10 +59,6 @@ async function init() {
 	btnVerify.addEventListener('click', verifyConnection);
 	btnSave.addEventListener('click', saveAccount);
 	btnCancelEdit.addEventListener('click', closeEditor);
-	btnMailboxSetup.addEventListener('click', setupMailboxConnector);
-	btnMailboxTest.addEventListener('click', testMailboxConnector);
-	mailboxProviderSelect.addEventListener('change', markMailboxDirty);
-	mailboxEmailInput.addEventListener('input', markMailboxDirty);
 	editorAutoCaptureDelayInput.addEventListener('input', clampEditorAutoCaptureDelay);
 	projectSelect.addEventListener('change', updateAutoCaptureProjectReadout);
 	urlProjectSelect.addEventListener('change', updateAutoCaptureProjectReadout);
@@ -134,16 +120,11 @@ async function openNewAccountEditor() {
 	projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
 	urlProjectSelect.innerHTML = '<option value="">(use default project)</option>';
 	emailProjectSelect.innerHTML = '<option value="">(use default project)</option>';
-	mailboxProviderSelect.value = '';
-	mailboxEmailInput.value = '';
-	mailboxAppPasswordInput.value = '';
-	_mailboxConfigured = false;
 	applyAutoCaptureToEditor(DEFAULT_ACCOUNT_AUTO_CAPTURE);
 	updateAutoCaptureProjectReadout();
 	projectSection.style.display = 'none';
 	hideStatus(verifyStatus);
 	hideStatus(saveStatus);
-	hideStatus(mailboxStatus);
 	editorSection.style.display = 'block';
 	accountNameInput.focus();
 }
@@ -157,15 +138,10 @@ function openEditAccountEditor(account) {
 	projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
 	urlProjectSelect.innerHTML = '<option value="">(use default project)</option>';
 	emailProjectSelect.innerHTML = '<option value="">(use default project)</option>';
-	mailboxProviderSelect.value = account.mailbox_provider || '';
-	mailboxEmailInput.value = account.mailbox_email || '';
-	mailboxAppPasswordInput.value = '';
-	_mailboxConfigured = Boolean(account.mailbox_configured);
 	applyAutoCaptureToEditor(normalizeAccountAutoCapture(account.auto_capture));
 	setAutoCaptureProjectReadout(account.project_name || '');
 	hideStatus(verifyStatus);
 	hideStatus(saveStatus);
-	hideStatus(mailboxStatus);
 
 	// If already has a valid connection, try to load projects
 	if (account.instance_url && account.access_token) {
@@ -324,9 +300,6 @@ async function saveAccount() {
 	const urlProjectName = urlProjectId ? (urlProjectSelect.options[urlProjectSelect.selectedIndex]?.text || '') : '';
 	const emailProjectId = emailProjectSelect.value;
 	const emailProjectName = emailProjectId ? (emailProjectSelect.options[emailProjectSelect.selectedIndex]?.text || '') : '';
-	const mailboxProvider = mailboxProviderSelect.value.trim();
-	const mailboxEmail = mailboxEmailInput.value.trim().toLowerCase();
-	const mailboxConfigured = Boolean(mailboxProvider && mailboxEmail && _mailboxConfigured);
 	const autoCapture = readAutoCaptureFromEditor();
 
 	if (!name) {
@@ -353,9 +326,6 @@ async function saveAccount() {
 				project_id: projectId, project_name: projectName,
 				url_project_id: urlProjectId, url_project_name: urlProjectName,
 				email_project_id: emailProjectId, email_project_name: emailProjectName,
-				mailbox_provider: mailboxProvider,
-				mailbox_email: mailboxEmail,
-				mailbox_configured: mailboxConfigured,
 				auto_capture: autoCapture,
 			});
 		} else {
@@ -365,9 +335,6 @@ async function saveAccount() {
 				project_name: projectName,
 				url_project_id: urlProjectId, url_project_name: urlProjectName,
 				email_project_id: emailProjectId, email_project_name: emailProjectName,
-				mailbox_provider: mailboxProvider,
-				mailbox_email: mailboxEmail,
-				mailbox_configured: mailboxConfigured,
 				auto_capture: autoCapture,
 			});
 			_editingAccountId = account.id;
@@ -425,136 +392,6 @@ function updateAutoCaptureProjectReadout() {
 	const defaultOpt = projectSelect && projectSelect.options[projectSelect.selectedIndex];
 	const defaultName = defaultOpt && defaultOpt.value ? defaultOpt.text : '';
 	setAutoCaptureProjectReadout(defaultName);
-}
-
-function markMailboxDirty() {
-	if (_mailboxConfigured) {
-		_mailboxConfigured = false;
-		showStatus(mailboxStatus, 'Mailbox fields changed. Run Setup Connector again before saving.', 'info');
-	}
-}
-
-async function testMailboxConnector() {
-	await runMailboxAction(false);
-}
-
-async function setupMailboxConnector() {
-	await runMailboxAction(true);
-}
-
-async function runMailboxAction(isSetup) {
-	const instanceUrl = instanceUrlInput.value.trim().replace(/\/+$/, '');
-	const accessToken = accessTokenInput.value.trim();
-	const mailboxProvider = mailboxProviderSelect.value.trim();
-	const mailboxEmail = mailboxEmailInput.value.trim().toLowerCase();
-	const appPassword = mailboxAppPasswordInput.value.trim();
-
-	if (!instanceUrl || !accessToken) {
-		showStatus(mailboxStatus, 'Set instance URL and token first.', 'error');
-		return;
-	}
-
-	if (!mailboxProvider || !mailboxEmail || !appPassword) {
-		showStatus(mailboxStatus, 'Provider, mailbox email, and app password/token are required.', 'error');
-		return;
-	}
-
-	const endpoint = isSetup
-		? '/api/v1/mailbox/setup-credentials'
-		: '/api/v1/mailbox/test-connection';
-	const requestUrl = instanceUrl + endpoint;
-
-	showStatus(mailboxStatus, isSetup ? 'Setting up connector...' : 'Testing connector...', 'info');
-	btnMailboxSetup.disabled = true;
-	btnMailboxTest.disabled = true;
-
-	try {
-		const { response, usedUrl, triedUrls } = await fetchWith404Fallback(requestUrl, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': 'Token ' + accessToken,
-			},
-			body: JSON.stringify({
-				provider: mailboxProvider,
-				email: mailboxEmail,
-				app_password: appPassword,
-			}),
-		});
-
-		if (!response.ok) {
-			const data = await readResponseData(response);
-			const apiMessage = getApiErrorMessage(data);
-			if (response.status === 404) {
-				throw new Error('Connector endpoint not found (404). Tried: ' + triedUrls.join(' | '));
-			}
-			throw new Error(apiMessage || ('HTTP ' + response.status + ' (' + usedUrl + ')'));
-		}
-
-		if (isSetup) {
-			_mailboxConfigured = true;
-			showStatus(mailboxStatus, 'Connector configured on backend. Password/token not stored in extension.', 'success');
-		} else {
-			showStatus(mailboxStatus, 'Connector test successful.', 'success');
-		}
-
-		mailboxAppPasswordInput.value = '';
-	} catch (err) {
-		showStatus(mailboxStatus, 'Mailbox error: ' + err.message, 'error');
-	} finally {
-		btnMailboxSetup.disabled = false;
-		btnMailboxTest.disabled = false;
-	}
-}
-
-async function fetchWith404Fallback(url, init) {
-	const triedUrls = [url];
-	let usedUrl = url;
-	let response = await fetch(url, init);
-
-	if (response.status === 404) {
-		const fallbackUrl = toggleTrailingSlash(url);
-		if (fallbackUrl !== url) {
-			triedUrls.push(fallbackUrl);
-			response = await fetch(fallbackUrl, init);
-			usedUrl = fallbackUrl;
-		}
-	}
-
-	return { response, usedUrl, triedUrls };
-}
-
-function toggleTrailingSlash(url) {
-	if (url.endsWith('/')) {
-		return url.replace(/\/+$/, '');
-	}
-	return url + '/';
-}
-
-async function readResponseData(response) {
-	let text = '';
-	try {
-		text = await response.text();
-	} catch (_err) {
-		return {};
-	}
-
-	if (!text) {
-		return {};
-	}
-
-	try {
-		return JSON.parse(text);
-	} catch (_err) {
-		return { detail: text };
-	}
-}
-
-function getApiErrorMessage(data) {
-	if (!data || typeof data !== 'object') {
-		return '';
-	}
-	return data.error || data.detail || data.message || '';
 }
 
 async function resolveDefaultInstanceUrl() {

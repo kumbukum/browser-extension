@@ -79,41 +79,6 @@
           <p class="help-text">Saved emails are stored here. Leave on default to use the Default Project.</p>
         </div>
 
-        <div class="subsection" id="mailbox-section" style="margin-top: 1.5rem;">
-          <h3>Email Connector (optional)</h3>
-          <p class="help-text">While we try our best to extract email information without a login, providing credentials allows for more reliable syncing and should be used if you want to ensure all emails are captured all the time.</p>
-          
-          <div class="form-group" style="margin-top: 1rem;">
-            <label for="mailbox-provider">Provider</label>
-            <select id="mailbox-provider" class="input">
-              <option value="">-- Select provider --</option>
-              <option value="fastmail-jmap">Fastmail (JMAP)</option>
-              <option value="fastmail-imap">Fastmail (IMAP)</option>
-              <option value="gmail-imap">Gmail (IMAP app password)</option>
-              <option value="outlook-imap">Outlook/365 (IMAP app password)</option>
-              <option value="generic-imap">Generic IMAP</option>
-              <option value="generic-jmap">Generic JMAP</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="mailbox-email">Mailbox Email</label>
-            <input type="email" id="mailbox-email" class="input" placeholder="you@example.com">
-          </div>
-          
-          <div class="form-group">
-            <label for="mailbox-app-password">App Password / Token</label>
-            <input type="password" id="mailbox-app-password" class="input" placeholder="Enter app password or token">
-          </div>
-          
-          <div class="btn-row">
-            <button id="btn-mailbox-test" class="btn btn-outline-secondary btn-sm">Test Connector</button>
-            <button id="btn-mailbox-setup" class="btn btn-info btn-sm">Setup Connector</button>
-          </div>
-          <div id="mailbox-status" class="status" style="display:none;"></div>
-          <div class="help-text fs-7 mt-3">Your email credentials are securely encrypted and sent to Kumbukum and never stored in the extension.</div>
-        </div>
-
         <div class="subsection" id="auto-capture-section" style="margin-top: 1.5rem;">
           <h3>Automatic URL Capture (optional)</h3>
           <p class="help-text">When enabled, pages you visit are captured into this account's default project after a short delay. You can enable this on multiple accounts; URLs are saved into each enabled account that doesn't exclude them.</p>
