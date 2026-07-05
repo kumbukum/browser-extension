@@ -10,7 +10,7 @@ import {
 	normalizeExcludeSites,
 } from './url-capture.js';
 
-const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
+const CLOUD_INSTANCE_URL = 'https://app.streamient.com';
 const LOCAL_INSTANCE_URL = 'http://localhost:3000';
 
 let _editingAccountId = null; // null = adding new, string = editing existing
@@ -179,7 +179,7 @@ async function verifyConnection() {
 	const accessToken = accessTokenInput.value.trim();
 
 	if (!instanceUrl) {
-		showStatus(verifyStatus, 'Please enter your Kumbukum instance URL.', 'error');
+		showStatus(verifyStatus, 'Please enter your Streamient instance URL.', 'error');
 		return;
 	}
 	if (!accessToken) {
@@ -254,7 +254,7 @@ async function loadProjects(instanceUrl, accessToken, selections) {
 		const projects = extractProjectsFromResponse(data);
 
 		if (projects.length === 0) {
-			console.warn('[Kumbukum] /api/v1/projects returned no projects. Response:', data);
+			console.warn('[Streamient] /api/v1/projects returned no projects. Response:', data);
 		}
 
 		projectSelect.innerHTML = '<option value="">-- Select a project --</option>';
@@ -399,12 +399,12 @@ async function resolveDefaultInstanceUrl() {
 		return _resolvedDefaultInstanceUrl;
 	}
 
-	const localReachable = await isLikelyLocalKumbukumReachable();
+	const localReachable = await isLikelyLocalStreamientReachable();
 	_resolvedDefaultInstanceUrl = localReachable ? LOCAL_INSTANCE_URL : CLOUD_INSTANCE_URL;
 	return _resolvedDefaultInstanceUrl;
 }
 
-async function isLikelyLocalKumbukumReachable() {
+async function isLikelyLocalStreamientReachable() {
 	try {
 		const response = await fetch(LOCAL_INSTANCE_URL + '/api/v1/counts', {
 			method: 'GET',

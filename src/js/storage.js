@@ -1,7 +1,7 @@
 // Cross-browser compatible storage module — multi-account support
 import browser from 'webextension-polyfill';
 
-const CLOUD_INSTANCE_URL = 'https://app.kumbukum.com';
+const CLOUD_INSTANCE_URL = 'https://app.streamient.com';
 const LOCAL_DEV_INSTANCE_URL = 'http://localhost:3000';
 const MIN_AUTO_CAPTURE_SECONDS = 30;
 const LEGACY_AUTO_CAPTURE_KEY = 'auto_capture_settings';
@@ -148,7 +148,7 @@ async function addAccount({ name, instance_url, access_token }) {
 	const account = {
 		id: crypto.randomUUID(),
 		name: name || 'Account',
-		instance_url: (instance_url || 'https://app.kumbukum.com').replace(/\/+$/, ''),
+		instance_url: (instance_url || 'https://app.streamient.com').replace(/\/+$/, ''),
 		access_token: access_token || '',
 		project_id: '',
 		project_name: '',

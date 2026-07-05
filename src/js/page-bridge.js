@@ -4,11 +4,11 @@
 		return;
 	}
 
-	if (root.getAttribute('data-kumbukum-page-bridge') === 'ready') {
+	if (root.getAttribute('data-streamient-page-bridge') === 'ready') {
 		return;
 	}
 
-	const REQUEST_EVENT = 'kumbukum:page-request';
+	const REQUEST_EVENT = 'streamient:page-request';
 
 	function serializeError(error) {
 		if (!error) {
@@ -586,7 +586,7 @@
 	}
 
 	function dispatchResponse(id, detail) {
-		document.dispatchEvent(new CustomEvent('kumbukum:page-response:' + id, {
+		document.dispatchEvent(new CustomEvent('streamient:page-response:' + id, {
 			detail,
 		}));
 	}
@@ -617,5 +617,5 @@
 		}
 	});
 
-	root.setAttribute('data-kumbukum-page-bridge', 'ready');
+	root.setAttribute('data-streamient-page-bridge', 'ready');
 }());

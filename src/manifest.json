@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Kumbukum",
-  "description": "Save URLs and notes directly to Kumbukum to share with your team and AI assistants.",
-  "version": "1.1.0",
+  "name": "Streamient",
+  "description": "Save URLs and notes directly to Streamient to share with your team and AI assistants.",
+  "version": "2.1.0",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -10,7 +10,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Kumbukum",
+    "default_title": "Streamient",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",

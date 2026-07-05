@@ -1,11 +1,11 @@
-# Kumbukum Browser Extension
+# Streamient Browser Extension
 
 > Capture context from any page.  
-> Save URLs and notes into Kumbukum without breaking your flow.
+> Save URLs and notes into Streamient without breaking your flow.
 
-The Kumbukum Browser Extension is the fastest way to send what you are reading into your shared memory layer. Save a page URL, write a markdown note, or do both at once and link them together inside Kumbukum.
+The Streamient Browser Extension is the fastest way to send what you are reading into your shared memory layer. Save a page URL, write a markdown note, or do both at once and link them together inside Streamient.
 
-[Website](https://kumbukum.com) · [Cloud](https://app.kumbukum.com) · [Docs](https://app.kumbukum.com/docs/) · [Self-Hosted Guide](https://app.kumbukum.com/docs/selfhosted/)
+[Website](https://streamient.com) · [Cloud](https://app.streamient.com) · [Docs](https://app.streamient.com/docs/) · [Self-Hosted Guide](https://app.streamient.com/docs/selfhosted/)
 
 ## Why this extension exists
 
@@ -13,7 +13,7 @@ When useful context lives in tabs, it gets lost fast.
 
 This extension lets you capture what matters while you are already on the page:
 
-- **Save the current URL** directly into Kumbukum
+- **Save the current URL** directly into Streamient
 - **Write a markdown note** alongside what you are browsing
 - **Save URL + note together** and automatically link them
 - **Choose the target project** so captured context lands in the right place
@@ -23,14 +23,14 @@ This extension lets you capture what matters while you are already on the page:
 
 - **Current page capture** — grabs the active tab URL and page title
 - **Markdown note editor** — write quick notes inside the popup with formatting and preview
-- **Automatic linking** — when you save both a URL and note, the extension links them in Kumbukum
-- **Multi-account support** — configure multiple Kumbukum accounts and switch from the popup
-- **Cloud + self-hosted support** — works with `app.kumbukum.com` or your own Kumbukum instance
+- **Automatic linking** — when you save both a URL and note, the extension links them in Streamient
+- **Multi-account support** — configure multiple Streamient accounts and switch from the popup
+- **Cloud + self-hosted support** — works with `app.streamient.com` or your own Streamient instance
 - **Project-aware capture** — verify connection, load projects, and choose where new items are stored
 
 ## How it works
 
-1. Configure a Kumbukum account in the extension settings
+1. Configure a Streamient account in the extension settings
 2. Verify the connection with your personal access token
 3. Pick the project that should receive captured items
 4. On any page, open the popup and save the URL, a note, or both
@@ -47,7 +47,7 @@ This extension lets you capture what matters while you are already on the page:
 
 - Node.js >= 18
 - npm
-- A Kumbukum account or self-hosted instance
+- A Streamient account or self-hosted instance
 - A personal access token from **Settings → Tokens**
 
 ### Install dependencies
@@ -84,7 +84,7 @@ To configure an account manually:
 1. Open the extension settings / options page
 2. Add an account name so you can tell workspaces apart
 3. Enter your **Instance URL**
-	- Cloud: `https://app.kumbukum.com`
+	- Cloud: `https://app.streamient.com`
 	- Self-hosted: `https://your-instance.com`
 4. Enter your **Personal Access Token**
 5. Click **Verify Connection**
@@ -98,7 +98,7 @@ You can add multiple accounts and switch the active one from the popup.
 ### Save URL only
 
 1. Open any page
-2. Click the Kumbukum extension icon
+2. Click the Streamient extension icon
 3. Click **Save URL Only**
 
 ### Save note only
@@ -117,7 +117,7 @@ You can add multiple accounts and switch the active one from the popup.
 The extension will:
 
 - save the current page as a URL
-- save the note to the selected Kumbukum project
+- save the note to the selected Streamient project
 - create a link between them when both saves succeed
 
 ## Tech notes

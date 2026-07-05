@@ -7,11 +7,16 @@ import {
 import {
 	getAutoCaptureSkipReason,
 	normalizeUrlForCapture,
-	postUrlToKumbukum,
+	postUrlToStreamient,
 } from './url-capture.js';
 
-const AUTO_CAPTURE_ALARM_PREFIX = 'kumbukum.autoCapture.';
+const AUTO_CAPTURE_ALARM_PREFIX = 'streamient.autoCapture.';
+// Pre-rebrand prefix; persisted alarms from old installs must be cleared on update.
+const LEGACY_AUTO_CAPTURE_ALARM_PREFIX = 'kumbukum.autoCapture.';
 const AUTO_CAPTURE_PENDING_KEY = 'auto_capture_pending';
+const REBRAND_NOTICE_KEY = 'streamient.rebrandNoticePending';
+const REBRAND_BADGE_TEXT = 'NEW';
+const REBRAND_BADGE_COLOR = '#2d9c6f';
 
 function alarmNameFor(accountId) {
 	return AUTO_CAPTURE_ALARM_PREFIX + accountId;
@@ -21,9 +26,9 @@ function accountIdFromAlarm(name) {
 	if (!name || !name.startsWith(AUTO_CAPTURE_ALARM_PREFIX)) return '';
 	return name.slice(AUTO_CAPTURE_ALARM_PREFIX.length);
 }
-const EMAIL_EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
-const EMAIL_APP_CONTEXT_ACTION = 'kumbukum.detectEmailAppContext';
-const SCROLL_CAPTURE_ACTION = 'kumbukum.autoCaptureScrollDepth';
+const EMAIL_EXTRACT_ACTION = 'streamient.extractEmailCandidate';
+const EMAIL_APP_CONTEXT_ACTION = 'streamient.detectEmailAppContext';
+const SCROLL_CAPTURE_ACTION = 'streamient.autoCaptureScrollDepth';
 const SIDEPANEL_PATH = 'sidepanel.html';
 const POPUP_PATH = 'popup.html';
 const EMAIL_ACTION_BADGE = 'AI';
@@ -44,11 +49,14 @@ browser.runtime.onInstalled.addListener(function (details) {
 	if (details.reason === 'install') {
 		browser.runtime.openOptionsPage();
 	}
+	void maybeFlagRebrandNotice(details);
+	void clearLegacyAutoCaptureAlarms();
 	void initializeSidePanelBehavior();
 	void handleCurrentActiveTabChanged();
 });
 
 browser.runtime.onStartup.addListener(function () {
+	void restoreRebrandBadge();
 	void initializeSidePanelBehavior();
 	void handleCurrentActiveTabChanged();
 });
@@ -160,7 +168,7 @@ async function updateSidePanelForTab(tab) {
 			await browser.action.setPopup({ tabId: tab.id, popup: '' });
 			await browser.action.setBadgeText({ tabId: tab.id, text: EMAIL_ACTION_BADGE });
 			await browser.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#2d9c6f' });
-			await browser.action.setTitle({ tabId: tab.id, title: 'Open Kumbukum email helper' });
+			await browser.action.setTitle({ tabId: tab.id, title: 'Open Streamient email helper' });
 			return true;
 		}
 
@@ -169,8 +177,9 @@ async function updateSidePanelForTab(tab) {
 			enabled: false,
 		});
 		await browser.action.setPopup({ tabId: tab.id, popup: POPUP_PATH });
-		await browser.action.setBadgeText({ tabId: tab.id, text: '' });
-		await browser.action.setTitle({ tabId: tab.id, title: 'Kumbukum' });
+		// null (not '') falls back to the global badge, so the rebrand badge stays visible.
+		await browser.action.setBadgeText({ tabId: tab.id, text: null });
+		await browser.action.setTitle({ tabId: tab.id, title: 'Streamient' });
 		return false;
 	} catch (_err) {
 		// Keep the default popup usable if tab-specific sidepanel setup fails.
@@ -225,6 +234,36 @@ async function clearAllAutoCaptureAlarms() {
 	await Promise.all(alarms
 		.filter(function (a) { return a && a.name && a.name.startsWith(AUTO_CAPTURE_ALARM_PREFIX); })
 		.map(function (a) { return browser.alarms.clear(a.name); }));
+}
+
+async function clearLegacyAutoCaptureAlarms() {
+	const alarms = await browser.alarms.getAll();
+	await Promise.all(alarms
+		.filter(function (a) { return a && a.name && a.name.startsWith(LEGACY_AUTO_CAPTURE_ALARM_PREFIX); })
+		.map(function (a) { return browser.alarms.clear(a.name); }));
+}
+
+// Installs updated in place from a pre-rebrand (Kumbukum) version get a one-time
+// notice: a global action badge plus a dismissible banner in the popup.
+async function maybeFlagRebrandNotice(details) {
+	if (details.reason !== 'update') return;
+	// Kumbukum shipped up to 2.0.x; the Streamient rebrand starts at 2.1.0.
+	if (!/^(1\.|2\.0\.)/.test(details.previousVersion || '')) return;
+	await browser.storage.local.set({ [REBRAND_NOTICE_KEY]: true });
+	await showRebrandBadge();
+}
+
+// The global badge does not survive a browser restart; the storage flag does.
+async function restoreRebrandBadge() {
+	const data = await browser.storage.local.get([REBRAND_NOTICE_KEY]);
+	if (data[REBRAND_NOTICE_KEY]) {
+		await showRebrandBadge();
+	}
+}
+
+async function showRebrandBadge() {
+	await browser.action.setBadgeText({ text: REBRAND_BADGE_TEXT });
+	await browser.action.setBadgeBackgroundColor({ color: REBRAND_BADGE_COLOR });
 }
 
 async function scheduleCurrentActiveTab() {
@@ -363,7 +402,7 @@ async function captureTabIfEligible(tab, account, pending) {
 
 	try {
 		const screenshotDataUrl = await captureVisibleScreenshot(tab);
-		await postUrlToKumbukum(account, {
+		await postUrlToStreamient(account, {
 			url: tab.url,
 			title: tab.title || (pending && pending.title) || '',
 			project_id: urlProjectId,

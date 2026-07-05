@@ -5,7 +5,7 @@ import {
 	enrichEmailCandidateBeforeSave,
 	getEmailDisplaySubject,
 	isSaveableEmailCandidate,
-	saveEmailToKumbukum,
+	saveEmailToStreamient,
 	shouldRefreshEmailCandidateBeforeSave,
 } from './email-utils.js';
 import { getAllSettings } from './storage.js';
@@ -40,7 +40,7 @@ async function loadSettingsAndTab() {
 	try {
 		await apiRequest(_settings, '/counts', { method: 'GET' });
 	} catch (_err) {
-		showWarning('Could not connect to Kumbukum. Check settings.');
+		showWarning('Could not connect to Streamient. Check settings.');
 		return;
 	}
 
@@ -94,8 +94,8 @@ async function addEmail() {
 		if (shouldRefreshEmailCandidateBeforeSave(candidate)) {
 			candidate = await enrichEmailCandidateBeforeSave(candidate, _currentTab?.id, _currentTab?.url);
 		}
-		const result = await saveEmailToKumbukum(_settings, candidate);
-		showStatus(result?.duplicate ? 'Email already stored.' : 'Email stored in Kumbukum.', 'success');
+		const result = await saveEmailToStreamient(_settings, candidate);
+		showStatus(result?.duplicate ? 'Email already stored.' : 'Email stored in Streamient.', 'success');
 	} catch (err) {
 		showStatus(err.message || 'Could not store email.', 'error');
 	} finally {

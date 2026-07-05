@@ -246,6 +246,29 @@ body {
   box-shadow: 0 0 0 2px rgba(45, 156, 111, 0.15);
 }
 
+/* One-time rebrand notice */
+.rebrand-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #d4edda;
+  color: #155724;
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rebrand-dismiss {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
 /* Status messages */
 .status {
   margin-top: 8px;
