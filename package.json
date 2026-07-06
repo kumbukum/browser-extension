@@ -1,7 +1,7 @@
 {
-  "name": "kumbukum-browser-extension",
-  "version": "2.1.0",
-  "description": "Use Kumbukum to save URLs, notes, and emails. Create knowledge graphs and share with your team and AI assistants.",
+  "name": "streamient-browser-extension",
+  "version": "2.2.0",
+  "description": "Use Streamient to save URLs, notes, and emails. Create knowledge graphs and share with your team and AI assistants.",
   "private": true,
   "scripts": {
     "watch": "webpack --mode=development --watch --config webpack.config.js",

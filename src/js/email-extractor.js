@@ -1,10 +1,10 @@
 import browser from 'webextension-polyfill';
 import { Readability } from '@mozilla/readability';
 
-const EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
-const EMAIL_APP_CONTEXT_ACTION = 'kumbukum.detectEmailAppContext';
-const PAGE_REQUEST_EVENT = 'kumbukum:page-request';
-const PAGE_BRIDGE_STATUS_ATTRIBUTE = 'data-kumbukum-page-bridge';
+const EXTRACT_ACTION = 'streamient.extractEmailCandidate';
+const EMAIL_APP_CONTEXT_ACTION = 'streamient.detectEmailAppContext';
+const PAGE_REQUEST_EVENT = 'streamient:page-request';
+const PAGE_BRIDGE_STATUS_ATTRIBUTE = 'data-streamient-page-bridge';
 const OUTLOOK_MESSAGE_SOURCE_CACHE = new Map();
 
 const RAW_SOURCE_SIGNAL_HEADERS = [
@@ -342,8 +342,8 @@ async function requestPageContextData(type, payload) {
 	}
 
 	return new Promise(function (resolve) {
-		const requestId = 'kumbukum-' + type + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
-		const responseEventName = 'kumbukum:page-response:' + requestId;
+		const requestId = 'streamient-' + type + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+		const responseEventName = 'streamient:page-response:' + requestId;
 		let settled = false;
 
 		function cleanup() {
@@ -390,7 +390,7 @@ async function ensurePageBridgeInjected() {
 		return true;
 	}
 
-	const existingScript = document.querySelector('script[data-kumbukum-page-bridge="true"]');
+	const existingScript = document.querySelector('script[data-streamient-page-bridge="true"]');
 	if (existingScript) {
 		return waitForPageBridgeReady();
 	}
@@ -399,7 +399,7 @@ async function ensurePageBridgeInjected() {
 		const script = document.createElement('script');
 		script.src = browser.runtime.getURL('page_bridge.js');
 		script.async = false;
-		script.dataset.kumbukumPageBridge = 'true';
+		script.dataset.streamientPageBridge = 'true';
 		script.onload = function () {
 			script.remove();
 			waitForPageBridgeReady().then(resolve);
@@ -879,9 +879,9 @@ function normalizeWhitespace(value) {
 }
 
 function detectEmailAppContext() {
-	const app = normalizeMetaToken(getMetaContent('kumbukum:app'));
-	const capabilities = parseMetaCapabilities(getMetaContent('kumbukum:capabilities'));
-	const vendor = normalizeMetaToken(getMetaContent('kumbukum:vendor'));
+	const app = normalizeMetaToken(getMetaContent('streamient:app'));
+	const capabilities = parseMetaCapabilities(getMetaContent('streamient:capabilities'));
+	const vendor = normalizeMetaToken(getMetaContent('streamient:vendor'));
 	const isEmailApp = app === 'email' || capabilities.indexOf('email') !== -1;
 
 	return {

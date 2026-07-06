@@ -3,100 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kumbukum Email</title>
+  <title>Streamient Email Storage</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
   <main class="sidepanel-shell">
     <header class="sidepanel-header">
-      <div class="brand-mark">K</div>
+      <div class="brand-mark">S</div>
       <div>
-        <h1>How can we help?</h1>
+        <h1>Store email</h1>
         <p id="email-context" class="email-context">Checking current tab...</p>
       </div>
     </header>
 
     <section id="warning-view" class="panel-card panel-warning" style="display:none;">
-      <p id="warning-message">Please configure Kumbukum first.</p>
+      <p id="warning-message">Please configure Streamient first.</p>
       <button id="btn-open-settings" class="btn btn-primary btn-full" type="button">Open Settings</button>
     </section>
 
     <section id="main-view" style="display:none;">
       <div class="actions-grid">
-        <button id="btn-add-email" class="btn btn-outline" type="button">Add Email</button>
-        <button id="btn-summarize" class="btn btn-outline" type="button">Summarize email</button>
-        <button id="btn-suggest-reply" class="btn btn-outline" type="button">Suggest a reply</button>
-        <button id="btn-add-note" class="btn btn-outline" type="button">Add note</button>
-        <button id="btn-show-related" class="btn btn-outline btn-wide" type="button">Show related</button>
+        <button id="btn-add-email" class="btn btn-primary btn-full" type="button">Add Email</button>
       </div>
-
       <div id="status" class="status" style="display:none;"></div>
-
-      <section id="summary-section" class="panel-card" style="display:none;">
-        <div class="section-header">
-          <h2>Summary</h2>
-          <button class="section-close" type="button" data-close-section="summary-section" aria-label="Close summary">x</button>
-        </div>
-        <p id="summary-output"></p>
-      </section>
-
-      <section id="reply-section" class="panel-card" style="display:none;">
-        <div class="section-header">
-          <h2>Reply options</h2>
-          <button class="section-close" type="button" data-close-section="reply-section" aria-label="Close reply options">x</button>
-        </div>
-        <div id="reply-output"></div>
-      </section>
-
-      <section id="note-section" class="panel-card" style="display:none;">
-        <div class="section-header">
-          <h2>Notes</h2>
-          <button class="section-close" type="button" data-close-section="note-section" aria-label="Close add note">x</button>
-        </div>
-        <div id="notes-list" class="notes-list"></div>
-        <div id="note-editor-panel" class="note-editor-panel" style="display:none;">
-          <div class="editor-toolbar" aria-label="Note formatting">
-            <button type="button" class="editor-tool" data-editor-command="bold">B</button>
-            <button type="button" class="editor-tool" data-editor-command="italic">I</button>
-            <button type="button" class="editor-tool" data-editor-command="insertUnorderedList">•</button>
-            <button type="button" class="editor-tool" data-editor-command="insertOrderedList">1.</button>
-          </div>
-          <div id="note-editor" class="wysiwyg-editor" contenteditable="true"></div>
-          <div class="button-row">
-            <button id="btn-cancel-note" class="btn btn-secondary" type="button">Cancel</button>
-            <button id="btn-save-note" class="btn btn-primary" type="button">Save note</button>
-          </div>
-        </div>
-      </section>
-
-      <section id="related-section" class="panel-card" style="display:none;">
-        <div class="section-header">
-          <h2>Related</h2>
-          <button class="section-close" type="button" data-close-section="related-section" aria-label="Close related">x</button>
-        </div>
-        <div id="related-output"></div>
-      </section>
     </section>
-
-    <footer class="ai-composer">
-      <section id="ai-response-section" class="panel-card ai-response-card" style="display:none;">
-        <div class="section-header">
-          <h2>Answer</h2>
-          <button class="section-close" type="button" data-close-section="ai-response-section" aria-label="Close answer">x</button>
-        </div>
-        <div id="ai-response-output"></div>
-      </section>
-      <div class="ai-prompt-actions" aria-label="Example prompts">
-        <button class="ai-prompt-button" type="button" data-ai-prompt="What is this email asking for?">What is this email asking for?</button>
-        <button class="ai-prompt-button" type="button" data-ai-prompt="What context do we have on this sender?">What context do we have on this sender?</button>
-        <button class="ai-prompt-button" type="button" data-ai-prompt="List follow-up tasks">List follow-up tasks</button>
-        <button class="ai-prompt-button" type="button" data-ai-prompt="Draft a concise reply">Draft a concise reply</button>
-      </div>
-      <div class="ai-composer-row">
-        <input id="ai-input" class="ai-input" type="text" autocomplete="off">
-        <button id="btn-ask-ai" class="btn btn-primary btn-send" type="button">Ask</button>
-      </div>
-    </footer>
   </main>
   <script src="sidepanel.js"></script>
 </body>

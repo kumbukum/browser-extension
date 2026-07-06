@@ -3,15 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kumbukum</title>
+  <title>Streamient</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+  <!-- One-time rebrand notice; background.js sets the flag on update from a pre-rebrand version -->
+  <div id="rebrand-notice" class="rebrand-notice" style="display:none;">
+    <span>Kumbukum is now <strong>Streamient</strong> — same extension, new name. Your accounts and settings are unchanged.</span>
+    <button id="btn-dismiss-rebrand" class="rebrand-dismiss" aria-label="Dismiss">&times;</button>
+  </div>
+
   <!-- Warning view: shown when not configured -->
   <div id="view-warning" class="view" style="display:none;">
     <div class="warning-container">
-      <div class="logo-small">K</div>
-      <p id="warning-message">Please configure your Kumbukum settings.</p>
+      <div class="logo-small">S</div>
+      <p id="warning-message">Please configure your Streamient settings.</p>
       <button id="btn-open-settings" class="btn btn-primary btn-full">Open Settings</button>
     </div>
   </div>

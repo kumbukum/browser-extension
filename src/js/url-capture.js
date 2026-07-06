@@ -32,7 +32,7 @@ const DEFAULT_EXCLUDED_HOSTS = [
 	'mistral.ai',
 	'grok.com',
 	'app.razuna.com',
-	'app.kumbukum.com',
+	'app.streamient.com',
 	'app.helpmonks.com',
 ];
 
@@ -125,7 +125,7 @@ function getAutoCaptureSkipReason(url, userExcludeSites) {
 	return '';
 }
 
-async function postUrlToKumbukum(settings, urlInfo) {
+async function postUrlToStreamient(settings, urlInfo) {
 	const payload = {
 		url: urlInfo.url,
 		title: urlInfo.title || '',
@@ -197,5 +197,5 @@ export {
 	normalizeAutoCaptureDelay,
 	normalizeExcludeSites,
 	normalizeUrlForCapture,
-	postUrlToKumbukum,
+	postUrlToStreamient,
 };

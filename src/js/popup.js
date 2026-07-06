@@ -6,14 +6,16 @@ import {
 	setActiveAccount,
 } from './storage.js';
 import {
-	postUrlToKumbukum,
+	postUrlToStreamient,
 } from './url-capture.js';
 import {
-	saveEmailToKumbukum,
+	saveEmailToStreamient,
 } from './email-utils.js';
 import EasyMDE from 'easymde';
 import { marked } from 'marked';
 import 'easymde/dist/easymde.min.css';
+
+const REBRAND_NOTICE_KEY = 'streamient.rebrandNoticePending';
 
 let _settings = {};
 let _editor = null;
@@ -23,6 +25,8 @@ let _emailCandidate = null;
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+	void initRebrandNotice();
+
 	// Load accounts and populate switcher
 	const accounts = await getAccounts();
 
@@ -56,6 +60,20 @@ async function init() {
 	});
 
 	await loadActiveAccount();
+}
+
+async function initRebrandNotice() {
+	const data = await browser.storage.local.get([REBRAND_NOTICE_KEY]);
+	if (!data[REBRAND_NOTICE_KEY]) {
+		return;
+	}
+	const notice = document.getElementById('rebrand-notice');
+	notice.style.display = '';
+	document.getElementById('btn-dismiss-rebrand').addEventListener('click', async function () {
+		notice.style.display = 'none';
+		await browser.storage.local.remove(REBRAND_NOTICE_KEY);
+		await browser.action.setBadgeText({ text: '' });
+	});
 }
 
 async function loadActiveAccount() {
@@ -102,7 +120,7 @@ async function loadActiveAccount() {
 		}
 	} catch (_err) {
 		document.getElementById('warning-message').textContent =
-			'Could not connect to Kumbukum. Please check your settings.';
+			'Could not connect to Streamient. Please check your settings.';
 		showView('view-warning');
 		document.getElementById('view-main').style.display = 'block';
 		document.getElementById('btn-open-settings').addEventListener('click', function () {
@@ -187,7 +205,7 @@ async function apiSaveUrl() {
 		throw new Error('No active tab found.');
 	}
 
-	return postUrlToKumbukum(_settings, {
+	return postUrlToStreamient(_settings, {
 		url: _currentTab.url,
 		title: _currentTab.title || '',
 		project_id: _settings.url_project_id || _settings.project_id,
@@ -378,7 +396,7 @@ async function apiSaveEmail(candidate) {
 		const apiMessage = getApiErrorMessage(data);
 
 		if (response.status === 404) {
-			const localHint = _settings.instance_url === 'https://app.kumbukum.com'
+			const localHint = _settings.instance_url === 'https://app.streamient.com'
 				? ' If running local dev, set Instance URL to http://localhost:3000 in extension settings.'
 				: '';
 			throw new Error(`Email endpoint not found (404). Tried: ${triedUrls.join(' | ')}. Backend may not support /api/v1/emails yet.${localHint}`);
@@ -432,7 +450,7 @@ async function saveEmail() {
 			throw new Error('No email found on this page.');
 		}
 		showStatus(statusEl, 'Adding email...', 'info');
-		await saveEmailToKumbukum(_settings, candidate, _currentTab);
+		await saveEmailToStreamient(_settings, candidate, _currentTab);
 		showStatus(statusEl, 'Email added!', 'success');
 	} catch (err) {
 		showStatus(statusEl, 'Failed: ' + err.message, 'error');
@@ -533,33 +551,33 @@ async function detectEmailCandidate(options) {
 	_emailCandidate = null;
 
 	if (!_currentTab || !_currentTab.id || !_currentTab.url || !/^https?:\/\//i.test(_currentTab.url)) {
-		renderEmailUnavailableState('Open an email page to add it to Kumbukum.', false);
+		renderEmailUnavailableState('Open an email page to add it to Streamient.', false);
 		return;
 	}
 
 	try {
 		const candidates = await collectEmailCandidatesFromTab(_currentTab.id, options || {});
 		if (candidates.length === 0) {
-			renderEmailUnavailableState('Couldn’t detect an email here. If parsing is not working, you may want to add connector settings.', true);
+			renderEmailUnavailableState('Couldn’t detect an email here. Open an email message and try again.', true);
 			return;
 		}
 
 		const mergedCandidate = mergeEmailCandidates(candidates);
 		if (!mergedCandidate) {
-			renderEmailUnavailableState('Couldn’t detect an email here. If parsing is not working, you may want to add connector settings.', true);
+			renderEmailUnavailableState('Couldn’t detect an email here. Open an email message and try again.', true);
 			return;
 		}
 
 		const normalizedCandidate = normalizeEmailCandidate(mergedCandidate);
 		if (!isSaveableEmailCandidate(normalizedCandidate)) {
-			renderEmailUnavailableState('We found email metadata, but the mail body is still missing. If parsing is not working, you may want to add connector settings.', true);
+			renderEmailUnavailableState('We found email metadata, but the mail body is still missing.', true);
 			return;
 		}
 
 		_emailCandidate = normalizedCandidate;
 		renderEmailPreview(_emailCandidate);
 	} catch (_err) {
-		renderEmailUnavailableState('Couldn’t inspect this page for email content. If parsing is not working, you may want to add connector settings.', true);
+		renderEmailUnavailableState('Couldn’t inspect this page for email content.', true);
 	}
 }
 
@@ -568,7 +586,7 @@ async function collectEmailCandidatesFromTab(tabId, options) {
 	const responses = await Promise.all(frameIds.map(async function (frameId) {
 		try {
 			const response = await browser.tabs.sendMessage(tabId, {
-				action: 'kumbukum.extractEmailCandidate',
+				action: 'streamient.extractEmailCandidate',
 				options: options || {},
 			}, { frameId });
 
@@ -860,7 +878,6 @@ function formatMode(mode) {
 function formatEmailMeta(candidate) {
 	const parts = [formatMode(candidate.mode), `${candidate.confidence} confidence`];
 	if (candidate.partial) {
-		parts.push('connector may help if details look off');
 	}
 	return parts.join(' · ');
 }

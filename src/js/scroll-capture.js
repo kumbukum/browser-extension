@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
 
-const SCROLL_CAPTURE_ACTION = 'kumbukum.autoCaptureScrollDepth';
+const SCROLL_CAPTURE_ACTION = 'streamient.autoCaptureScrollDepth';
 const SCROLL_THRESHOLD = 0.5;
 
 let lastNotifiedUrl = '';

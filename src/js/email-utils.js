@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
 
-const EMAIL_EXTRACT_ACTION = 'kumbukum.extractEmailCandidate';
+const EMAIL_EXTRACT_ACTION = 'streamient.extractEmailCandidate';
 
 async function collectEmailCandidatesFromTab(tabId, options) {
 	const frameIds = await getTabFrameIds(tabId);
@@ -381,7 +381,7 @@ function applyEditedEmailSubject(candidate, editedSubject) {
 	};
 }
 
-async function saveEmailToKumbukum(settings, candidate, tab) {
+async function saveEmailToStreamient(settings, candidate, tab) {
 	if (!candidate) {
 		throw new Error('No email detected on page.');
 	}
@@ -470,7 +470,7 @@ async function saveEmailToKumbukum(settings, candidate, tab) {
 		const apiMessage = getApiErrorMessage(data);
 
 		if (response.status === 404) {
-			const localHint = settings.instance_url === 'https://app.kumbukum.com'
+			const localHint = settings.instance_url === 'https://app.streamient.com'
 				? ' If running local dev, set Instance URL to http://localhost:3000 in extension settings.'
 				: '';
 			throw new Error(`Email endpoint not found (404). Tried: ${triedUrls.join(' | ')}. Backend may not support /api/v1/emails yet.${localHint}`);
@@ -646,6 +646,6 @@ export {
 	mergeDetectedEmailCandidates,
 	mergeEmailCandidates,
 	normalizeEmailCandidate,
-	saveEmailToKumbukum,
+	saveEmailToStreamient,
 	shouldRefreshEmailCandidateBeforeSave,
 };
